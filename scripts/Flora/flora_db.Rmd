@@ -1,0 +1,2492 @@
+---
+title: "Task C.2) & D.1) Diversidad taxonómica, diversidad funcional y fenología de flora."
+author: ''
+date: ''
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+
+# Introducción:
+
+El objetivo del apartado C.2) es determinar la diversidad específica y funcional, así como la abundancia de species herbáceas tanto dentro como fuera de los Es biogénicos. Mientras que el objetivo del apartado D.1) es determinar el crecimiento y la senescencia de la vegetación herbácea. 
+
+# Hipótesis:
+
+Nuestra hipótesis es que los Es biogénicos deberían tener una mayor diversidad de species que los espacios abiertos que los rodean. Cuanto mayor sea la diversidad del banco de species herbáceas, más probable será que contengan species con diferentes rasgos funcionales y fenologías, lo que permite la complementariedad de nichos en el uso de los recursos y un período más largo de crecimiento y reproducción de la comunidad vegetal, además de ofrecer más alternativas de adaptación y una mayor capacidad de respuesta (resiliencia) de la vegetación herbácea frente al cambio climático.
+
+# Metodología original:
+
+En la metodología original del apartado C.2), se propuso realizar muestreos de la vegetación herbácea en dos cuadrados fijos de 1 m2, cada uno de ellos situado alrededor de cada estación microclimática (N = 2 x 86 = 172 cuadrados), realizandose mensualmente de abril a octubre de 2023 y 2024. Mientras que para el apartado D.1), se propuso realizar muestreos cada 15 días de la cubierta herbácea desde marzo hasta octubre de 2023 y 2024, estimando la proporción de plantas herbáceas que están verdes en comparación con la proporción que están secas.
+
+# Metodología real:
+
+La metodología llevada a cabo para el seguimiento de la diversidad y la fenología de la flora, se centra en la delimitación de 2 cuadrados por microestación, de 1m x 1m, con la ayuda de cuatro estacas de metal. Estos pares se asociaron a la matriz ambiental y otro par de las mismas dimensiones, se asociaron al E biogénico en concreto. Estos cuadrados son permanentes y a su vez, se subdividen en 4 subapartados de izquierda a derecha y de arriba a abajo, entendiéndose cada uno de ellos como A, B, C y D. Con el fin de saber cual es cada uno de ellos, se establece como referencia uno de los vértices del cuadrado, pintado de un color llamativo. Posteriormente, con una cuerda, se delimita cada uno de esos subapartados cuando se va a realizar el muestreo y luego se retira la misma. 
+El procedimiento consiste en identificar cada specie presente en cada subapartado, a la cual se le asigna un porcentaje en base a la presencia relativa al resto de species del mismo subapartado, siendo el valor máximo de la suma de todas las species el 100%. También se determinó el estado fenológico (fenofase) de cada herbácea, con diferentes niveles, pudiendo ser vegetativo, floración, fructificación o muerta. 
+Junto con esta información, se añade la cantidad de cover herbácea y el estado de la misma (verde o seca), además de si existe cover de tipo no herbácea (verde o seca), si existe algún espacio sin ningún tipo de cover (suelo desnudo) o si existe algún espacio cubierto por algún tipo de resto orgánico vegetal. La suma de todos los tipos de cover no puede superar el 100%. Paralelo a esto, se añadió la cover arbórea que hay justo encima del cuadrado completo, siendo el valor máximo un 100% de cover arbórea.
+El período de muestreo se inició en septiembre de 2023 hasta noviembre de dicho año, aunque estos datos fueron descartados ya que no se siguió correctamente la metodología anteriormente descrita, y no podían ser comparables con los datos de los muestreos de los años posteriores. Se continuó en mayo de 2024 hasta octubre del mismo año, y el último período abarca desde abril de 2025 hasta septiembre del mismo. La periodicidad del muestreo fue de una vez al mes. No se muestreó durante los meses invernales (noviembre-marzo) ni el mes de agosto. 
+Las species que no se han podido identificar en campo en el momento de muestreo, se han identificado en laboratorio a través de la extracción de un ejemplar externo al cuadrado delimitado para el muestreo. 
+En total, tanto en 2023 como en 2024, se realizó el seguimiento de flora de 616 subapartados dentro de los 154 cuadrados delimitados, distribuidos en las 77 verbatim_microstationes que se instalaron inicialmente.
+
+# Análisis de datos:
+
+A continuación, se representa gráficamente la diversidad taxonómica y funcional, así como el porcentaje de cover y el porcentaje de verde.
+
+## Diversidad taxonómica:
+
+Para la diversidad taxonómica, los datos se representan gráficamente por family y por specie.
+
+### Diversidad por family:
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+
+# PREPARACIÓN DE LA BASE DE DATOS
+
+library(DBI)
+library(RPostgres)
+con <- dbConnect(
+  RPostgres::Postgres(),
+  dbname = "your-database",
+  host = "your-IP",      # o la IP del servidor (ej. 192.168.1.50)
+  port = 5432,             # 5432 es el puerto por defecto de Postgres
+  user = "your-user",
+  password = "your-password" # Ver nota de seguridad abajo
+)
+
+datos <- dbReadTable(con, "int_herbaceous_species")
+
+dbDisconnect(con)
+
+# Cargar librerías
+library(dplyr)
+library(vegan)
+library(tidyr)
+library(ggplot2)
+library(ggpubr)
+library(purrr)
+library(lme4)
+library(lmerTest)
+library(emmeans)
+library(lubridate)
+library(ggpattern)
+
+# Convertir date a formato Date y crear columna Año
+datos$date <- as.Date(datos$date)
+datos <- datos %>%
+  mutate(Año = lubridate::year(date))
+
+# Crear subsets por año
+datos_2024_sub <- datos %>% filter(Año == 2024)
+datos_2025_sub <- datos %>% filter(Año == 2025)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# FUNCIÓN PARA PROCESAR DATOS DE UN AÑO - CORREGIDA Y MEJORADA
+procesar_datos_año <- function(datos_subset, año) {
+  
+  # ELIMINAR verbatim_microstationES ESPECÍFICAS: 60, 63 y 57 de plot CA altitude 1900
+  datos_filtrados <- datos_subset %>%
+    filter(!(plot == "CA" & verbatim_microstation %in% c(57, 60, 63)))
+  
+  # RECATEGORIZACIÓN DE ECOSYSTEMS - REEMPLAZAR LA COLUMNA ECOSYSTEM
+  datos_filtrados <- datos_filtrados %>%
+    mutate(ecosystem = case_when(
+      ecosystem == "Holm oak forest (Quercus ilex)" & grepl("F", plot, ignore.case = TRUE) ~ "Encinar seco",
+      ecosystem == "Holm oak forest (Quercus ilex)" & grepl("C", plot, ignore.case = TRUE) ~ "Encinar húmedo",
+      ecosystem == "Aleppo pine plantation (Pinus halepensis)" ~ "P_halepensis",
+      ecosystem == "Scots pine plantation (Pinus sylvestris)" ~ "P_sylvestris",
+      ecosystem %in% c("Juniper scrub (Juniperus communis)", "Cushion scrub (Genista versicolor/Cytisus galianoi)") ~ "Matorral A.M.",
+      ecosystem == "Maple forest (Sorbus Aria - Acer opalus)" ~ "Robledal",
+      ecosystem == "Pyrenean oak forest (Quercus pyrenaica)" ~ "Robledal",
+      TRUE ~ ecosystem
+    ))
+  
+  # 1. FILTRAR COLUMNAS DE ESPECIES ANTES DE PIVOTEAR
+  # Identificar columnas de especies
+  especies_cols <- datos_filtrados %>%
+    select(ends_with("_species")) %>%
+    names()
+  
+  # Convertir columnas de especies a caracteres y eliminar espacios en blanco
+  datos_filtrados <- datos_filtrados %>%
+    mutate(across(all_of(especies_cols), 
+                  ~ ifelse(is.na(.) | trimws(as.character(.)) == "", NA, as.character(.))))
+  
+  # Pivotear a formato largo
+  datos_largos <- datos_filtrados %>%
+    pivot_longer(
+      cols = all_of(especies_cols),
+      names_to = "biotype",
+      values_to = "species",  # Cambiado de "species" a "family"
+      values_drop_na = TRUE
+    ) %>%
+    # Filtrar filas donde family esté vacío o sea solo espacios
+    filter(!is.na(family), 
+           trimws(family) != "", 
+           !grepl("^\\s*$", family)) %>%  # Elimina cadenas con solo espacios
+    mutate(
+      # Asegurar que cover sea numérico
+      cover = case_when(
+        biotype == "shrub_species" ~ as.numeric(shrub_total_cover_perc),
+        biotype == "tree_species" ~ as.numeric(tree_total_cover_perc),
+        biotype == "scrub_species" ~ as.numeric(scrub_total_cover_perc),
+        biotype == "herb_species" ~ as.numeric(herb_total_cover_perc),
+        TRUE ~ NA_real_
+      )
+    ) %>%
+    select(plot, altitude, verbatim_microstation, treatment, family, cover, ecosystem, orientation) %>%
+    # Filtrar filas donde cover no sea numérico o sea NA
+    filter(!is.na(family), 
+           !is.na(cover), 
+           is.numeric(cover),
+           cover >= 0)  # Asumiendo que cobertura no puede ser negativa
+  
+  # Verificar si hay datos después del filtrado
+  if (nrow(datos_largos) == 0) {
+    warning(paste("No hay datos válidos después del filtrado para el año", año))
+    return(data.frame())
+  }
+  
+  # Calcular índices de diversidad A NIVEL DE MICROESTACIÓN
+  resultados_diversidad <- datos_largos %>%
+    group_by(plot, altitude, verbatim_microstation, treatment, family, ecosystem, orientation) %>%
+    summarise(Abundancia = sum(cover, na.rm = TRUE), .groups = 'drop') %>%
+    group_by(plot, altitude, verbatim_microstation, treatment, ecosystem, orientation) %>%
+    summarise(
+      Riqueza = n_distinct(family),
+      Simpson = ifelse(n_distinct(family) > 0 && sum(Abundancia) > 0, 
+                      diversity(Abundancia, index = "simpson"), 
+                      0),
+      Shannon = ifelse(n_distinct(family) > 0 && sum(Abundancia) > 0, 
+                      diversity(Abundancia, index = "shannon"), 
+                      0),
+      .groups = 'drop'
+    ) %>%
+    mutate(Año = año)
+  
+  return(resultados_diversidad)
+}
+
+# Aplicar la función a los subsets
+datos_2024 <- procesar_datos_año(datos_subset = datos_2024_sub, año = 2024)
+datos_2025 <- procesar_datos_año(datos_subset = datos_2025_sub, año = 2025)
+
+# Combinar datos de ambos años
+datos_combinados <- bind_rows(datos_2024, datos_2025)
+
+# Definir orden de ecosystems
+orden_ecosystems <- c("P_halepensis", "Encinar seco", "Encinar húmedo", "Robledal", "P_sylvestris", "Matorral A.M.")
+
+# 1. FUNCIÓN PARA GRÁFICAS POR ecosystem (AMBOS AÑOS)
+crear_grafico_ecosystem_combinado <- function(df, indice, titulo) {
+  
+  # Calcular n para cada grupo (número de verbatim_microstationes)
+  datos_n <- df %>%
+    group_by(ecosystem, treatment, Año) %>%
+    summarise(n = n_distinct(verbatim_microstation), .groups = 'drop')
+  
+  # Asegurar que todas las combinaciones estén presentes
+  combinaciones_completas <- expand.grid(
+    ecosystem = unique(df$ecosystem),
+    treatment = c("C", "E"),
+    Año = c(2024, 2025),
+    stringsAsFactors = FALSE
+  )
+  
+  datos_completos <- df %>%
+    right_join(combinaciones_completas, by = c("ecosystem", "treatment", "Año")) %>%
+    left_join(datos_n, by = c("ecosystem", "treatment", "Año")) %>%
+    mutate(
+      n = ifelse(is.na(n), 0, n),
+      ecosystem = factor(ecosystem, levels = orden_ecosystems)
+    )
+  
+  # Definir límites del eje Y según el índice
+  y_limits <- if (indice == "Simpson") {
+    c(0, 1)
+  } else if (indice == "Shannon") {
+    c(0, 2)
+  } else {
+    c(0, max(datos_completos[[indice]], na.rm = TRUE) * 1.1)
+  }
+  
+  p <- ggplot(datos_completos, aes(x = ecosystem, y = .data[[indice]], fill = treatment)) +
+    geom_boxplot(
+      aes(group = interaction(ecosystem, treatment, Año)),
+      position = position_dodge2(preserve = "single", width = 0.8),
+      outlier.shape = NA,  # Ocultamos outliers para representarlos manualmente después
+      coef = 1.5,  # Bigotes hasta Q3 + 1.5IQR y Q1 - 1.5IQR
+      alpha = 0.7
+    ) +
+    # Añadir puntos individuales de cada microestación
+    geom_point(
+      position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.8),
+      size = 0.8, 
+      color = "black",
+      alpha = 0.6
+    ) +
+    # Añadir mediana (línea negra)
+    stat_summary(
+      aes(group = interaction(ecosystem, treatment, Año)),
+      fun = median, 
+      geom = "crossbar", 
+      width = 0.6,
+      position = position_dodge(width = 0.8),
+      color = "black",
+      linewidth = 0.5,
+      show.legend = FALSE
+    ) +
+    # Añadir media (rombo rojo)
+    stat_summary(
+      aes(group = interaction(ecosystem, treatment, Año)),
+      fun = mean, 
+      geom = "point",
+      shape = 18,  # Rombo
+      size = 2,
+      position = position_dodge(width = 0.8),
+      color = "red",
+      show.legend = FALSE
+    ) +
+    # Añadir texto con n
+    geom_text(
+      data = datos_n %>% mutate(ecosystem = factor(ecosystem, levels = orden_ecosystems)),
+      aes(label = paste0("n=", n), y = -0.05 * diff(y_limits)),
+      position = position_dodge(width = 0.8),
+      size = 1.5, 
+      vjust = 1, 
+      color = "black", 
+      fontface = "bold"
+    ) +
+    facet_grid(. ~ Año, scales = "free_x", space = "free_x") +
+    labs(
+      title = paste(titulo, "por ecosystem", "(familys)"),
+      x = "",
+      y = titulo,
+      fill = "treatment:"
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "right",
+      axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 7),
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 10),
+      legend.text = element_text(size = 7),
+      legend.title = element_text(size = 7),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      panel.grid.major.y = element_line(color = "grey80", linewidth = 0.2),
+      panel.grid.minor.y = element_blank(),
+      strip.text = element_text(face = "bold", size = 8)
+    ) +
+    # CORREGIDO: Colores intercambiados según lo solicitado
+    scale_fill_manual(values = c("E" = "#a7c957", "C" = "#0077b6")) +
+    scale_y_continuous(expand = expansion(mult = c(0.1, 0.1))) +
+    coord_cartesian(ylim = y_limits)
+  
+  return(p)
+}
+
+# 2. FUNCIÓN PARA GRÁFICAS POR ORIENTACIÓN (AMBOS AÑOS)
+crear_grafico_orientation_combinado <- function(df, indice, titulo, ecosystem_seleccionado) {
+  
+  datos_filtrados <- df %>%
+    filter(ecosystem == ecosystem_seleccionado & orientation %in% c("North", "South"))
+  
+  if (nrow(datos_filtrados) == 0) {
+    return(NULL)
+  }
+  
+  # Calcular n para cada grupo (número de verbatim_microstationes)
+  datos_n <- datos_filtrados %>%
+    group_by(orientation, treatment, Año) %>%
+    summarise(n = n_distinct(verbatim_microstation), .groups = 'drop')
+  
+  p <- ggplot(datos_filtrados, aes(x = orientation, y = .data[[indice]], fill = treatment)) +
+    geom_boxplot(
+      aes(group = interaction(orientation, treatment, Año)),
+      position = position_dodge2(preserve = "single", width = 0.8),
+      outlier.shape = NA,
+      coef = 1.5,
+      alpha = 0.7
+    ) +
+    geom_point(
+      position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.8),
+      size = 0.8, 
+      color = "black",
+      alpha = 0.6
+    ) +
+    stat_summary(
+      aes(group = interaction(orientation, treatment, Año)),
+      fun = median, 
+      geom = "crossbar", 
+      width = 0.6,
+      position = position_dodge(width = 0.8),
+      color = "black",
+      linewidth = 0.5,
+      show.legend = FALSE
+    ) +
+    stat_summary(
+      aes(group = interaction(orientation, treatment, Año)),
+      fun = mean, 
+      geom = "point",
+      shape = 18,
+      size = 2,
+      position = position_dodge(width = 0.8),
+      color = "red",
+      show.legend = FALSE
+    ) +
+    geom_text(
+      data = datos_n,
+      aes(label = paste0("n=", n), y = -0.05),
+      position = position_dodge(width = 0.8),
+      size = 2.5, 
+      vjust = 1, 
+      color = "black", 
+      fontface = "bold"
+    ) +
+    facet_grid(. ~ Año, scales = "free_x", space = "free_x") +
+    labs(
+      title = paste(titulo, "-", ecosystem_seleccionado, "(familys)"),
+      x = "",
+      y = titulo,
+      fill = "treatment:"
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "right",
+      axis.text.x = element_text(angle = 0, hjust = 0.5, vjust = 1, size = 7),
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 9),
+      legend.text = element_text(size = 7),
+      legend.title = element_text(size = 7),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      strip.text = element_text(face = "bold", size = 8)
+    ) +
+    # CORREGIDO: Colores intercambiados según lo solicitado
+    scale_fill_manual(values = c("E" = "#a7c957", "C" = "#0077b6")) +
+    scale_y_continuous(expand = expansion(mult = c(0.1, 0.1)))
+  
+  # Aplicar límites del eje Y si es necesario
+  if (indice == "Simpson") {
+    p <- p + coord_cartesian(ylim = c(0, 1))
+  } else if (indice == "Shannon") {
+    p <- p + coord_cartesian(ylim = c(0, 2))
+  }
+  
+  return(p)
+}
+
+# 3. FUNCIÓN PARA GRÁFICAS DE ROBLEDAL POR plot Y altitude (AMBOS AÑOS)
+crear_grafico_robledal_altitude_combinado <- function(df, indice, titulo) {
+  
+  datos_robledal <- df %>%
+    filter(ecosystem == "Robledal")
+  
+  if (nrow(datos_robledal) == 0) {
+    return(NULL)
+  }
+  
+  # Crear etiqueta de plot-altitude
+  datos_robledal <- datos_robledal %>%
+    mutate(plot_altitude = paste(plot, "-", altitude, "m.s.n.m."))
+  
+  # Calcular n para cada grupo (número de verbatim_microstationes)
+  datos_n <- datos_robledal %>%
+    group_by(plot_altitude, orientation, treatment, Año) %>%
+    summarise(n = n_distinct(verbatim_microstation), .groups = 'drop')
+  
+  # Ordenar por altitude
+  orden_plots <- datos_robledal %>%
+    arrange(altitude) %>%
+    pull(plot_altitude) %>%
+    unique()
+  
+  datos_robledal <- datos_robledal %>%
+    mutate(plot_altitude = factor(plot_altitude, levels = orden_plots))
+  
+  p <- ggplot(datos_robledal, aes(x = plot_altitude, y = .data[[indice]], 
+                                 fill = treatment,
+                                 pattern = orientation)) +
+    geom_boxplot_pattern(
+      aes(group = interaction(plot_altitude, treatment, orientation, Año)),
+      position = position_dodge2(preserve = "single", width = 0.8),
+      outlier.shape = NA,
+      coef = 1.5,
+      alpha = 0.7,
+      pattern_fill = "black",
+      pattern_angle = 45,
+      pattern_density = 0.1,
+      pattern_spacing = 0.025,
+      pattern_key_scale_factor = 0.6
+    ) +
+    geom_point(
+      position = position_jitterdodge(jitter.width = 0.15, dodge.width = 0.8),
+      size = 0.8, 
+      color = "black",
+      alpha = 0.6
+    ) +
+    stat_summary(
+      aes(group = interaction(plot_altitude, treatment, orientation, Año)),
+      fun = median, 
+      geom = "crossbar", 
+      width = 0.5,
+      position = position_dodge(width = 0.8),
+      color = "black",
+      linewidth = 0.4,
+      show.legend = FALSE
+    ) +
+    stat_summary(
+      aes(group = interaction(plot_altitude, treatment, orientation, Año)),
+      fun = mean, 
+      geom = "point",
+      shape = 18,
+      size = 1.5,
+      position = position_dodge(width = 0.8),
+      color = "red",
+      show.legend = FALSE
+    ) +
+    geom_text(
+      data = datos_n %>% mutate(plot_altitude = factor(plot_altitude, levels = orden_plots)),
+      aes(label = paste0("n=", n), y = -0.05),
+      position = position_dodge(width = 0.8),
+      size = 1.5, 
+      vjust = 1, 
+      color = "black", 
+      fontface = "bold"
+    ) +
+    facet_grid(. ~ Año, scales = "free_x", space = "free_x") +
+    labs(
+      title = paste(titulo, "- Robledal", "(familys)"),
+      x = "",
+      y = titulo,
+      fill = "treatment:",
+      pattern = ""
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "right",
+      axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 6),
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 9),
+      legend.text = element_text(size = 7),
+      legend.title = element_text(size = 7),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      strip.text = element_text(face = "bold", size = 8)
+    ) +
+    # CORREGIDO: Colores intercambiados según lo solicitado
+    scale_fill_manual(
+      values = c("E" = "#a7c957", "C" = "#0077b6"),
+      guide = guide_legend(override.aes = list(pattern = "none"))
+    ) +
+    scale_pattern_manual(
+      values = c("North" = "none", "South" = "stripe"),
+      guide = guide_legend(override.aes = list(fill = "white", 
+                                              color = "black",
+                                              pattern_fill = "black"))
+    ) +
+    scale_y_continuous(expand = expansion(mult = c(0.1, 0.1)))
+  
+  # Aplicar límites del eje Y si es necesario
+  if (indice == "Simpson") {
+    p <- p + coord_cartesian(ylim = c(0, 1))
+  } else if (indice == "Shannon") {
+    p <- p + coord_cartesian(ylim = c(0, 2))
+  }
+  
+  return(p)
+}
+
+# GENERAR TODAS LAS GRÁFICAS COMBINADAS
+
+#cat("=== GRÁFICAS COMBINADAS POR ecosystem (2024-2025) ===\n")
+p1_riqueza <- crear_grafico_ecosystem_combinado(datos_combinados, "Riqueza", "Riqueza")
+p1_simpson <- crear_grafico_ecosystem_combinado(datos_combinados, "Simpson", "Índice de Simpson")
+p1_shannon <- crear_grafico_ecosystem_combinado(datos_combinados, "Shannon", "Índice de Shannon")
+print(p1_riqueza)
+print(p1_simpson)
+print(p1_shannon)
+
+#cat("\n=== GRÁFICAS COMBINADAS POR ORIENTACIÓN (2024-2025) ===\n")
+for(ecosystem in c("Robledal", "Matorral A.M.")) {
+  p2_riqueza <- crear_grafico_orientation_combinado(datos_combinados, "Riqueza", "Riqueza", ecosystem)
+  p2_simpson <- crear_grafico_orientation_combinado(datos_combinados, "Simpson", "Índice de Simpson", ecosystem)
+  p2_shannon <- crear_grafico_orientation_combinado(datos_combinados, "Shannon", "Índice de Shannon", ecosystem)
+  if(!is.null(p2_riqueza)) print(p2_riqueza)
+  if(!is.null(p2_simpson)) print(p2_simpson)
+  if(!is.null(p2_shannon)) print(p2_shannon)
+}
+
+#cat("\n=== GRÁFICAS COMBINADAS DE ROBLEDAL POR altitude (2024-2025) ===\n")
+p3_riqueza <- crear_grafico_robledal_altitude_combinado(datos_combinados, "Riqueza", "Riqueza")
+p3_simpson <- crear_grafico_robledal_altitude_combinado(datos_combinados, "Simpson", "Índice de Simpson")
+p3_shannon <- crear_grafico_robledal_altitude_combinado(datos_combinados, "Shannon", "Índice de Shannon")
+if(!is.null(p3_riqueza)) print(p3_riqueza)
+if(!is.null(p3_simpson)) print(p3_simpson)
+if(!is.null(p3_shannon)) print(p3_shannon)
+
+```
+
+### Diversidad por specie:
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+
+# PREPARACIÓN DE LA BASE DE DATOS
+
+library(DBI)
+library(RPostgres)
+con <- dbConnect(
+  RPostgres::Postgres(),
+  dbname = "your-database",
+  host = "your-IP",      # o la IP del servidor (ej. 192.168.1.50)
+  port = 5432,             # 5432 es el puerto por defecto de Postgres
+  user = "your-user",
+  password = "your-password" # Ver nota de seguridad abajo
+)
+
+datos <- dbReadTable(con, "int_herbaceous_species")
+
+dbDisconnect(con)
+
+# Cargar librerías
+library(dplyr)
+library(vegan)
+library(tidyr)
+library(ggplot2)
+library(ggpubr)
+library(purrr)
+library(lme4)
+library(lmerTest)
+library(emmeans)
+library(lubridate)
+library(ggpattern)
+
+# Convertir date a formato Date y crear columna Año
+datos$date <- as.Date(datos$date)
+datos <- datos %>%
+  mutate(Año = lubridate::year(date))
+
+# Crear subsets por año
+datos_2024_sub <- datos %>% filter(Año == 2024)
+datos_2025_sub <- datos %>% filter(Año == 2025)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# FUNCIÓN PARA PROCESAR DATOS DE UN AÑO - CORREGIDA Y MEJORADA
+procesar_datos_año <- function(datos_subset, año) {
+  
+  # ELIMINAR verbatim_microstationES ESPECÍFICAS: 60, 63 y 57 de plot CA altitude 1900
+  datos_filtrados <- datos_subset %>%
+    filter(!(plot == "CA" & altitude == 1900 & verbatim_microstation %in% c(57, 60, 63)))
+  
+  # RECATEGORIZACIÓN DE ECOSYSTEMS - REEMPLAZAR LA COLUMNA ECOSYSTEM
+  datos_filtrados <- datos_filtrados %>%
+    mutate(ecosystem = case_when(
+      ecosystem == "Holm oak forest (Quercus ilex)" & grepl("F", plot, ignore.case = TRUE) ~ "Encinar seco",
+      ecosystem == "Holm oak forest (Quercus ilex)" & grepl("C", plot, ignore.case = TRUE) ~ "Encinar húmedo",
+      ecosystem == "Aleppo pine plantation (Pinus halepensis)" ~ "P_halepensis",
+      ecosystem == "Scots pine plantation (Pinus sylvestris)" ~ "P_sylvestris",
+      ecosystem %in% c("Juniper scrub (Juniperus communis)", "Cushion scrub (Genista versicolor/Cytisus galianoi)") ~ "Matorral A.M.",
+      ecosystem == "Maple forest (Sorbus Aria - Acer opalus)" ~ "Robledal",
+      ecosystem == "Pyrenean oak forest (Quercus pyrenaica)" ~ "Robledal",
+      TRUE ~ ecosystem
+    ))
+  
+  # 1. FILTRAR COLUMNAS DE ESPECIES ANTES DE PIVOTEAR
+  # Identificar columnas de especies
+  especies_cols <- datos_filtrados %>%
+    select(ends_with("_species")) %>%
+    names()
+  
+  # Convertir columnas de especies a caracteres y eliminar espacios en blanco
+  datos_filtrados <- datos_filtrados %>%
+    mutate(across(all_of(especies_cols), 
+                  ~ ifelse(is.na(.) | trimws(as.character(.)) == "", NA, as.character(.))))
+  
+  # Pivotear a formato largo
+  datos_largos <- datos_filtrados %>%
+    pivot_longer(
+      cols = all_of(especies_cols),
+      names_to = "biotype",
+      values_to = "species",
+      values_drop_na = TRUE
+    ) %>%
+    # Filtrar filas donde species esté vacío o sea solo espacios
+    filter(!is.na(species), 
+           trimws(species) != "", 
+           !grepl("^\\s*$", species)) %>%  # Elimina cadenas con solo espacios
+    mutate(
+      # Asegurar que cover sea numérico
+      cover = case_when(
+        biotype == "shrub_species" ~ as.numeric(shrub_total_cover_perc),
+        biotype == "tree_species" ~ as.numeric(tree_total_cover_perc),
+        biotype == "scrub_species" ~ as.numeric(scrub_total_cover_perc),
+        biotype == "herb_species" ~ as.numeric(herb_total_cover_perc),
+        TRUE ~ NA_real_
+      )
+    ) %>%
+    select(plot, altitude, verbatim_microstation, treatment, species, cover, ecosystem, orientation) %>%
+    # Filtrar filas donde cover no sea numérico o sea NA
+    filter(!is.na(species), 
+           !is.na(cover), 
+           is.numeric(cover),
+           cover >= 0)  # Asumiendo que cobertura no puede ser negativa
+  
+  # Verificar si hay datos después del filtrado
+  if (nrow(datos_largos) == 0) {
+    warning(paste("No hay datos válidos después del filtrado para el año", año))
+    return(data.frame())
+  }
+  
+  # Calcular índices de diversidad de especies A NIVEL DE MICROESTACIÓN
+  resultados_diversidad <- datos_largos %>%
+    group_by(plot, altitude, verbatim_microstation, treatment, species, ecosystem, orientation) %>%
+    summarise(Abundancia = sum(cover, na.rm = TRUE), .groups = 'drop') %>%
+    group_by(plot, altitude, verbatim_microstation, treatment, ecosystem, orientation) %>%
+    summarise(
+      Riqueza = n_distinct(species),
+      Simpson = ifelse(n_distinct(species) > 0 && sum(Abundancia) > 0, 
+                      diversity(Abundancia, index = "simpson"), 
+                      0),
+      Shannon = ifelse(n_distinct(species) > 0 && sum(Abundancia) > 0, 
+                      diversity(Abundancia, index = "shannon"), 
+                      0),
+      .groups = 'drop'
+    ) %>%
+    mutate(Año = año)
+  
+  return(resultados_diversidad)
+}
+
+# Aplicar la función a los subsets
+datos_2024 <- procesar_datos_año(datos_subset = datos_2024_sub, año = 2024)
+datos_2025 <- procesar_datos_año(datos_subset = datos_2025_sub, año = 2025)
+
+# Combinar datos de ambos años
+datos_combinados <- bind_rows(datos_2024, datos_2025)
+
+# Definir orden de ecosystems
+orden_ecosystems <- c("P_halepensis", "Encinar seco", "Encinar húmedo", "Robledal", "P_sylvestris", "Matorral A.M.")
+
+# 1. FUNCIÓN PARA GRÁFICAS POR ecosystem (AMBOS AÑOS)
+crear_grafico_ecosystem_combinado <- function(df, indice, titulo) {
+  
+  # Calcular n para cada grupo (número de verbatim_microstationes)
+  datos_n <- df %>%
+    group_by(ecosystem, treatment, Año) %>%
+    summarise(n = n_distinct(verbatim_microstation), .groups = 'drop')
+  
+  # Asegurar que todas las combinaciones estén presentes
+  combinaciones_completas <- expand.grid(
+    ecosystem = unique(df$ecosystem),
+    treatment = c("C", "E"),
+    Año = c(2024, 2025),
+    stringsAsFactors = FALSE
+  )
+  
+  datos_completos <- df %>%
+    right_join(combinaciones_completas, by = c("ecosystem", "treatment", "Año")) %>%
+    left_join(datos_n, by = c("ecosystem", "treatment", "Año")) %>%
+    mutate(
+      n = ifelse(is.na(n), 0, n),
+      ecosystem = factor(ecosystem, levels = orden_ecosystems)
+    )
+  
+  # Definir límites del eje Y según el índice
+  y_limits <- if (indice == "Simpson") {
+    c(0, 1)
+  } else if (indice == "Shannon") {
+    c(0, 3)  # Ajustado a 3 para species
+  } else {
+    c(0, max(datos_completos[[indice]], na.rm = TRUE) * 1.1)
+  }
+  
+  p <- ggplot(datos_completos, aes(x = ecosystem, y = .data[[indice]], fill = treatment)) +
+    geom_boxplot(
+      aes(group = interaction(ecosystem, treatment, Año)),
+      position = position_dodge2(preserve = "single", width = 0.8),
+      outlier.shape = NA,  # Ocultamos outliers para representarlos manualmente después
+      coef = 1.5,  # Bigotes hasta Q3 + 1.5IQR y Q1 - 1.5IQR
+      alpha = 0.7
+    ) +
+    # Añadir puntos individuales de cada microestación
+    geom_point(
+      position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.8),
+      size = 0.8, 
+      color = "black",
+      alpha = 0.6
+    ) +
+    # Añadir mediana (línea negra)
+    stat_summary(
+      aes(group = interaction(ecosystem, treatment, Año)),
+      fun = median, 
+      geom = "crossbar", 
+      width = 0.6,
+      position = position_dodge(width = 0.8),
+      color = "black",
+      linewidth = 0.5,
+      show.legend = FALSE
+    ) +
+    # Añadir media (rombo rojo)
+    stat_summary(
+      aes(group = interaction(ecosystem, treatment, Año)),
+      fun = mean, 
+      geom = "point",
+      shape = 18,  # Rombo
+      size = 2,
+      position = position_dodge(width = 0.8),
+      color = "red",
+      show.legend = FALSE
+    ) +
+    # Añadir texto con n
+    geom_text(
+      data = datos_n %>% mutate(ecosystem = factor(ecosystem, levels = orden_ecosystems)),
+      aes(label = paste0("n=", n), y = -0.05 * diff(y_limits)),
+      position = position_dodge(width = 0.8),
+      size = 1.5, 
+      vjust = 1, 
+      color = "black", 
+      fontface = "bold"
+    ) +
+    facet_grid(. ~ Año, scales = "free_x", space = "free_x") +
+    labs(
+      title = paste(titulo, "por ecosystem", "(species)"),
+      x = "",
+      y = titulo,
+      fill = "treatment:"
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "right",
+      axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 7),
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 10),
+      legend.text = element_text(size = 7),
+      legend.title = element_text(size = 7),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      panel.grid.major.y = element_line(color = "grey80", linewidth = 0.2),
+      panel.grid.minor.y = element_blank(),
+      strip.text = element_text(face = "bold", size = 8)
+    ) +
+    # CORREGIDO: Colores intercambiados según lo solicitado
+    scale_fill_manual(values = c("E" = "#a7c957", "C" = "#0077b6")) +
+    scale_y_continuous(expand = expansion(mult = c(0.1, 0.1))) +
+    coord_cartesian(ylim = y_limits)
+  
+  return(p)
+}
+
+# 2. FUNCIÓN PARA GRÁFICAS POR ORIENTACIÓN (AMBOS AÑOS)
+crear_grafico_orientation_combinado <- function(df, indice, titulo, ecosystem_seleccionado) {
+  
+  datos_filtrados <- df %>%
+    filter(ecosystem == ecosystem_seleccionado & orientation %in% c("North", "South"))
+  
+  if (nrow(datos_filtrados) == 0) {
+    return(NULL)
+  }
+  
+  # Calcular n para cada grupo (número de verbatim_microstationes)
+  datos_n <- datos_filtrados %>%
+    group_by(orientation, treatment, Año) %>%
+    summarise(n = n_distinct(verbatim_microstation), .groups = 'drop')
+  
+  p <- ggplot(datos_filtrados, aes(x = orientation, y = .data[[indice]], fill = treatment)) +
+    geom_boxplot(
+      aes(group = interaction(orientation, treatment, Año)),
+      position = position_dodge2(preserve = "single", width = 0.8),
+      outlier.shape = NA,
+      coef = 1.5,
+      alpha = 0.7
+    ) +
+    geom_point(
+      position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.8),
+      size = 0.8, 
+      color = "black",
+      alpha = 0.6
+    ) +
+    stat_summary(
+      aes(group = interaction(orientation, treatment, Año)),
+      fun = median, 
+      geom = "crossbar", 
+      width = 0.6,
+      position = position_dodge(width = 0.8),
+      color = "black",
+      linewidth = 0.5,
+      show.legend = FALSE
+    ) +
+    stat_summary(
+      aes(group = interaction(orientation, treatment, Año)),
+      fun = mean, 
+      geom = "point",
+      shape = 18,
+      size = 2,
+      position = position_dodge(width = 0.8),
+      color = "red",
+      show.legend = FALSE
+    ) +
+    geom_text(
+      data = datos_n,
+      aes(label = paste0("n=", n), y = -0.05),
+      position = position_dodge(width = 0.8),
+      size = 2.5, 
+      vjust = 1, 
+      color = "black", 
+      fontface = "bold"
+    ) +
+    facet_grid(. ~ Año, scales = "free_x", space = "free_x") +
+    labs(
+      title = paste(titulo, "-", ecosystem_seleccionado, "(species)"),
+      x = "",
+      y = titulo,
+      fill = "treatment:"
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "right",
+      axis.text.x = element_text(angle = 0, hjust = 0.5, vjust = 1, size = 7),
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 9),
+      legend.text = element_text(size = 7),
+      legend.title = element_text(size = 7),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      strip.text = element_text(face = "bold", size = 8)
+    ) +
+    # CORREGIDO: Colores intercambiados según lo solicitado
+    scale_fill_manual(values = c("E" = "#a7c957", "C" = "#0077b6")) +
+    scale_y_continuous(expand = expansion(mult = c(0.1, 0.1)))
+  
+  # Aplicar límites del eje Y si es necesario
+  if (indice == "Simpson") {
+    p <- p + coord_cartesian(ylim = c(0, 1))
+  } else if (indice == "Shannon") {
+    p <- p + coord_cartesian(ylim = c(0, 3))  # Ajustado a 3 para species
+  }
+  
+  return(p)
+}
+
+# 3. FUNCIÓN PARA GRÁFICAS DE ROBLEDAL POR plot Y altitude (AMBOS AÑOS)
+crear_grafico_robledal_altitude_combinado <- function(df, indice, titulo) {
+  
+  datos_robledal <- df %>%
+    filter(ecosystem == "Robledal")
+  
+  if (nrow(datos_robledal) == 0) {
+    return(NULL)
+  }
+  
+  # Crear etiqueta de plot-altitude
+  datos_robledal <- datos_robledal %>%
+    mutate(plot_altitude = paste(plot, "-", altitude, "m.s.n.m."))
+  
+  # Calcular n para cada grupo (número de verbatim_microstationes)
+  datos_n <- datos_robledal %>%
+    group_by(plot_altitude, orientation, treatment, Año) %>%
+    summarise(n = n_distinct(verbatim_microstation), .groups = 'drop')
+  
+  # Ordenar por altitude
+  orden_plots <- datos_robledal %>%
+    arrange(altitude) %>%
+    pull(plot_altitude) %>%
+    unique()
+  
+  datos_robledal <- datos_robledal %>%
+    mutate(plot_altitude = factor(plot_altitude, levels = orden_plots))
+  
+  p <- ggplot(datos_robledal, aes(x = plot_altitude, y = .data[[indice]], 
+                                 fill = treatment,
+                                 pattern = orientation)) +
+    geom_boxplot_pattern(
+      aes(group = interaction(plot_altitude, treatment, orientation, Año)),
+      position = position_dodge2(preserve = "single", width = 0.8),
+      outlier.shape = NA,
+      coef = 1.5,
+      alpha = 0.7,
+      pattern_fill = "black",
+      pattern_angle = 45,
+      pattern_density = 0.1,
+      pattern_spacing = 0.025,
+      pattern_key_scale_factor = 0.6
+    ) +
+    geom_point(
+      position = position_jitterdodge(jitter.width = 0.15, dodge.width = 0.8),
+      size = 0.8, 
+      color = "black",
+      alpha = 0.6
+    ) +
+    stat_summary(
+      aes(group = interaction(plot_altitude, treatment, orientation, Año)),
+      fun = median, 
+      geom = "crossbar", 
+      width = 0.5,
+      position = position_dodge(width = 0.8),
+      color = "black",
+      linewidth = 0.4,
+      show.legend = FALSE
+    ) +
+    stat_summary(
+      aes(group = interaction(plot_altitude, treatment, orientation, Año)),
+      fun = mean, 
+      geom = "point",
+      shape = 18,
+      size = 1.5,
+      position = position_dodge(width = 0.8),
+      color = "red",
+      show.legend = FALSE
+    ) +
+    geom_text(
+      data = datos_n %>% mutate(plot_altitude = factor(plot_altitude, levels = orden_plots)),
+      aes(label = paste0("n=", n), y = -0.05),
+      position = position_dodge(width = 0.8),
+      size = 1.5, 
+      vjust = 1, 
+      color = "black", 
+      fontface = "bold"
+    ) +
+    facet_grid(. ~ Año, scales = "free_x", space = "free_x") +
+    labs(
+      title = paste(titulo, "- Robledal", "(species)"),
+      x = "",
+      y = titulo,
+      fill = "treatment:",
+      pattern = ""
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "right",
+      axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 6),
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 9),
+      legend.text = element_text(size = 7),
+      legend.title = element_text(size = 7),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      strip.text = element_text(face = "bold", size = 8)
+    ) +
+    # CORREGIDO: Colores intercambiados según lo solicitado
+    scale_fill_manual(
+      values = c("E" = "#a7c957", "C" = "#0077b6"),
+      guide = guide_legend(override.aes = list(pattern = "none"))
+    ) +
+    scale_pattern_manual(
+      values = c("North" = "none", "South" = "stripe"),
+      guide = guide_legend(override.aes = list(fill = "white", 
+                                              color = "black",
+                                              pattern_fill = "black"))
+    ) +
+    scale_y_continuous(expand = expansion(mult = c(0.1, 0.1)))
+  
+  # Aplicar límites del eje Y si es necesario
+  if (indice == "Simpson") {
+    p <- p + coord_cartesian(ylim = c(0, 1))
+  } else if (indice == "Shannon") {
+    p <- p + coord_cartesian(ylim = c(0, 3))  # Ajustado a 3 para species
+  }
+  
+  return(p)
+}
+
+# GENERAR TODAS LAS GRÁFICAS COMBINADAS
+
+#cat("=== GRÁFICAS COMBINADAS POR ecosystem (2024-2025) ===\n")
+p1_riqueza <- crear_grafico_ecosystem_combinado(datos_combinados, "Riqueza", "Riqueza")
+p1_simpson <- crear_grafico_ecosystem_combinado(datos_combinados, "Simpson", "Índice de Simpson")
+p1_shannon <- crear_grafico_ecosystem_combinado(datos_combinados, "Shannon", "Índice de Shannon")
+print(p1_riqueza)
+print(p1_simpson)
+print(p1_shannon)
+
+#cat("\n=== GRÁFICAS COMBINADAS POR ORIENTACIÓN (2024-2025) ===\n")
+for(ecosystem in c("Robledal", "Matorral A.M.")) {
+  p2_riqueza <- crear_grafico_orientation_combinado(datos_combinados, "Riqueza", "Riqueza", ecosystem)
+  p2_simpson <- crear_grafico_orientation_combinado(datos_combinados, "Simpson", "Índice de Simpson", ecosystem)
+  p2_shannon <- crear_grafico_orientation_combinado(datos_combinados, "Shannon", "Índice de Shannon", ecosystem)
+  if(!is.null(p2_riqueza)) print(p2_riqueza)
+  if(!is.null(p2_simpson)) print(p2_simpson)
+  if(!is.null(p2_shannon)) print(p2_shannon)
+}
+
+#cat("\n=== GRÁFICAS COMBINADAS DE ROBLEDAL POR altitude (2024-2025) ===\n")
+p3_riqueza <- crear_grafico_robledal_altitude_combinado(datos_combinados, "Riqueza", "Riqueza")
+p3_simpson <- crear_grafico_robledal_altitude_combinado(datos_combinados, "Simpson", "Índice de Simpson")
+p3_shannon <- crear_grafico_robledal_altitude_combinado(datos_combinados, "Shannon", "Índice de Shannon")
+if(!is.null(p3_riqueza)) print(p3_riqueza)
+if(!is.null(p3_simpson)) print(p3_simpson)
+if(!is.null(p3_shannon)) print(p3_shannon)
+
+```
+
+## Diversidad funcional:
+
+Para la diversidad funcional, los datos se representan gráficamente según los biotypes de Raunkiaer y según su forma de vida.
+
+### Diversidad biotypes (biotypes de Raunkiaer):
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+
+# PREPARACIÓN DE LA BASE DE DATOS
+
+library(DBI)
+library(RPostgres)
+con <- dbConnect(
+  RPostgres::Postgres(),
+  dbname = "your-database",
+  host = "your-IP",      # o la IP del servidor (ej. 192.168.1.50)
+  port = 5432,             # 5432 es el puerto por defecto de Postgres
+  user = "your-user",
+  password = "your-password" # Ver nota de seguridad abajo
+)
+
+datos <- dbReadTable(con, "int_herbaceous_species")
+
+dbDisconnect(con)
+
+# Cargar librerías
+library(dplyr)
+library(vegan)
+library(tidyr)
+library(ggplot2)
+library(ggpubr)
+library(purrr)
+library(lme4)
+library(lmerTest)
+library(emmeans)
+library(lubridate)
+library(ggpattern)
+
+# Convertir date a formato Date y crear columna Año
+datos$date <- as.Date(datos$date)
+datos <- datos %>%
+  mutate(Año = lubridate::year(date))
+
+# Crear subsets por año
+datos_2024_sub <- datos %>% filter(Año == 2024)
+datos_2025_sub <- datos %>% filter(Año == 2025)
+
+# FUNCIÓN PARA PROCESAR DATOS DE UN AÑO - CORREGIDA Y MEJORADA
+procesar_datos_año <- function(datos_subset, año) {
+  
+  # ELIMINAR verbatim_microstationES ESPECÍFICAS: 60, 63 y 57 de plot CA altitude 1900
+  datos_filtrados <- datos_subset %>%
+    filter(!(plot == "CA" & verbatim_microstation %in% c(57, 60, 63)))
+  
+  # RECATEGORIZACIÓN DE ECOSYSTEMS - REEMPLAZAR LA COLUMNA ECOSYSTEM
+  datos_filtrados <- datos_filtrados %>%
+    mutate(ecosystem = case_when(
+      ecosystem == "Holm oak forest (Quercus ilex)" & grepl("F", plot, ignore.case = TRUE) ~ "Encinar seco",
+      ecosystem == "Holm oak forest (Quercus ilex)" & grepl("C", plot, ignore.case = TRUE) ~ "Encinar húmedo",
+      ecosystem == "Aleppo pine plantation (Pinus halepensis)" ~ "P_halepensis",
+      ecosystem == "Scots pine plantation (Pinus sylvestris)" ~ "P_sylvestris",
+      ecosystem %in% c("Juniper scrub (Juniperus communis)", "Cushion scrub (Genista versicolor/Cytisus galianoi)") ~ "Matorral A.M.",
+      ecosystem == "Maple forest (Sorbus Aria - Acer opalus)" ~ "Robledal",
+      ecosystem == "Pyrenean oak forest (Quercus pyrenaica)" ~ "Robledal",
+      TRUE ~ ecosystem
+    ))
+  
+  # 1. FILTRAR COLUMNAS DE ESPECIES ANTES DE PIVOTEAR
+  # Identificar columnas de especies
+  especies_cols <- datos_filtrados %>%
+    select(ends_with("_species")) %>%
+    names()
+  
+  # Convertir columnas de especies a caracteres y eliminar espacios en blanco
+  datos_filtrados <- datos_filtrados %>%
+    mutate(across(all_of(especies_cols), 
+                  ~ ifelse(is.na(.) | trimws(as.character(.)) == "", NA, as.character(.))))
+  
+  # Pivotear a formato largo
+  datos_largos_biotypes <- datos_filtrados %>%
+    pivot_longer(
+      cols = all_of(especies_cols),
+      names_to = "biotype",
+      values_to = "species",
+      values_drop_na = TRUE
+    ) %>%
+    # Filtrar filas donde species esté vacío o sea solo espacios (más robusto que species != "")
+    filter(!is.na(species), 
+           trimws(species) != "", 
+           !grepl("^\\s*$", species)) %>%
+    mutate(
+      # Asegurar que cover sea numérico
+      cover = case_when(
+        biotype == "shrub_species" ~ as.numeric(shrub_total_cover_perc),
+        biotype == "tree_species" ~ as.numeric(tree_total_cover_perc),
+        biotype == "scrub_species" ~ as.numeric(scrub_total_cover_perc),
+        biotype == "herb_species" ~ as.numeric(herb_total_cover_perc),
+        TRUE ~ NA_real_
+      )
+    ) %>%
+    select(plot, altitude, verbatim_microstation, treatment, life_form, cover, ecosystem, orientation) %>%
+    # Filtrar filas donde life_form o cover no sean válidos
+    filter(!is.na(life_form), 
+           trimws(life_form) != "",  # También limpia life_form
+           !grepl("^\\s*$", life_form),
+           !is.na(cover), 
+           is.numeric(cover),
+           cover >= 0)  # Asumiendo que cobertura no puede ser negativa
+  
+  # Verificar si hay datos después del filtrado
+  if (nrow(datos_largos_biotypes) == 0) {
+    warning(paste("No hay datos válidos después del filtrado para el año", año))
+    return(data.frame())
+  }
+  
+  # Calcular índices de diversidad funcional A NIVEL DE MICROESTACIÓN - usando LifeForm
+  resultados_diversidad_funcional <- datos_largos_biotypes %>%
+    group_by(plot, altitude, verbatim_microstation, treatment, life_form, ecosystem, orientation) %>%
+    summarise(Abundancia = sum(cover, na.rm = TRUE), .groups = 'drop') %>%
+    group_by(plot, altitude, verbatim_microstation, treatment, ecosystem, orientation) %>%
+    summarise(
+      Riqueza = n_distinct(life_form),
+      Simpson = ifelse(n_distinct(life_form) > 0 && sum(Abundancia) > 0, 
+                      diversity(Abundancia, index = "simpson"), 
+                      0),
+      Shannon = ifelse(n_distinct(life_form) > 0 && sum(Abundancia) > 0, 
+                      diversity(Abundancia, index = "shannon"), 
+                      0),
+      .groups = 'drop'
+    ) %>%
+    mutate(Año = año)
+  
+  return(resultados_diversidad_funcional)
+}
+
+# Aplicar la función a los subsets
+datos_2024 <- procesar_datos_año(datos_subset = datos_2024_sub, año = 2024)
+datos_2025 <- procesar_datos_año(datos_subset = datos_2025_sub, año = 2025)
+
+# Combinar datos de ambos años
+datos_combinados <- bind_rows(datos_2024, datos_2025)
+
+# Definir orden de ecosystems
+orden_ecosystems <- c("P_halepensis", "Encinar seco", "Encinar húmedo", "Robledal", "P_sylvestris", "Matorral A.M.")
+
+# 1. FUNCIÓN PARA GRÁFICAS POR ecosystem (AMBOS AÑOS)
+crear_grafico_ecosystem_combinado <- function(df, indice, titulo) {
+  
+  # Calcular n para cada grupo (número de verbatim_microstationes)
+  datos_n <- df %>%
+    group_by(ecosystem, treatment, Año) %>%
+    summarise(n = n_distinct(verbatim_microstation), .groups = 'drop')
+  
+  # Asegurar que todas las combinaciones estén presentes
+  combinaciones_completas <- expand.grid(
+    ecosystem = unique(df$ecosystem),
+    treatment = c("C", "E"),
+    Año = c(2024, 2025),
+    stringsAsFactors = FALSE
+  )
+  
+  datos_completos <- df %>%
+    right_join(combinaciones_completas, by = c("ecosystem", "treatment", "Año")) %>%
+    left_join(datos_n, by = c("ecosystem", "treatment", "Año")) %>%
+    mutate(
+      n = ifelse(is.na(n), 0, n),
+      ecosystem = factor(ecosystem, levels = orden_ecosystems)
+    )
+  
+  # Definir límites del eje Y según el índice
+  y_limits <- if (indice == "Simpson") {
+    c(0, 1)
+  } else if (indice == "Shannon") {
+    c(0, 2)  # Para diversidad funcional de biotypes
+  } else {
+    c(0, max(datos_completos[[indice]], na.rm = TRUE) * 1.1)
+  }
+  
+  p <- ggplot(datos_completos, aes(x = ecosystem, y = .data[[indice]], fill = treatment)) +
+    geom_boxplot(
+      aes(group = interaction(ecosystem, treatment, Año)),
+      position = position_dodge2(preserve = "single", width = 0.8),
+      outlier.shape = NA,  # Ocultamos outliers para representarlos manualmente después
+      coef = 1.5,  # Bigotes hasta Q3 + 1.5IQR y Q1 - 1.5IQR
+      alpha = 0.7
+    ) +
+    # Añadir puntos individuales de cada microestación
+    geom_point(
+      position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.8),
+      size = 0.8, 
+      color = "black",
+      alpha = 0.6
+    ) +
+    # Añadir mediana (línea negra)
+    stat_summary(
+      aes(group = interaction(ecosystem, treatment, Año)),
+      fun = median, 
+      geom = "crossbar", 
+      width = 0.6,
+      position = position_dodge(width = 0.8),
+      color = "black",
+      linewidth = 0.5,
+      show.legend = FALSE
+    ) +
+    # Añadir media (rombo rojo)
+    stat_summary(
+      aes(group = interaction(ecosystem, treatment, Año)),
+      fun = mean, 
+      geom = "point",
+      shape = 18,  # Rombo
+      size = 2,
+      position = position_dodge(width = 0.8),
+      color = "red",
+      show.legend = FALSE
+    ) +
+    # Añadir texto con n
+    geom_text(
+      data = datos_n %>% mutate(ecosystem = factor(ecosystem, levels = orden_ecosystems)),
+      aes(label = paste0("n=", n), y = -0.05 * diff(y_limits)),
+      position = position_dodge(width = 0.8),
+      size = 1.5, 
+      vjust = 1, 
+      color = "black", 
+      fontface = "bold"
+    ) +
+    facet_grid(. ~ Año, scales = "free_x", space = "free_x") +
+    labs(
+      title = paste(titulo, "por ecosystem", "(biotypes)"),
+      x = "",
+      y = titulo,
+      fill = "treatment:"
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "right",
+      axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 7),
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 10),
+      legend.text = element_text(size = 7),
+      legend.title = element_text(size = 7),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      panel.grid.major.y = element_line(color = "grey80", linewidth = 0.2),
+      panel.grid.minor.y = element_blank(),
+      strip.text = element_text(face = "bold", size = 8)
+    ) +
+    # CORREGIDO: Colores intercambiados según lo solicitado
+    scale_fill_manual(values = c("E" = "#a7c957", "C" = "#0077b6")) +
+    scale_y_continuous(expand = expansion(mult = c(0.1, 0.1))) +
+    coord_cartesian(ylim = y_limits)
+  
+  return(p)
+}
+
+# 2. FUNCIÓN PARA GRÁFICAS POR ORIENTACIÓN (AMBOS AÑOS)
+crear_grafico_orientation_combinado <- function(df, indice, titulo, ecosystem_seleccionado) {
+  
+  datos_filtrados <- df %>%
+    filter(ecosystem == ecosystem_seleccionado & orientation %in% c("North", "South"))
+  
+  if (nrow(datos_filtrados) == 0) {
+    return(NULL)
+  }
+  
+  # Calcular n para cada grupo (número de verbatim_microstationes)
+  datos_n <- datos_filtrados %>%
+    group_by(orientation, treatment, Año) %>%
+    summarise(n = n_distinct(verbatim_microstation), .groups = 'drop')
+  
+  p <- ggplot(datos_filtrados, aes(x = orientation, y = .data[[indice]], fill = treatment)) +
+    geom_boxplot(
+      aes(group = interaction(orientation, treatment, Año)),
+      position = position_dodge2(preserve = "single", width = 0.8),
+      outlier.shape = NA,
+      coef = 1.5,
+      alpha = 0.7
+    ) +
+    geom_point(
+      position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.8),
+      size = 0.8, 
+      color = "black",
+      alpha = 0.6
+    ) +
+    stat_summary(
+      aes(group = interaction(orientation, treatment, Año)),
+      fun = median, 
+      geom = "crossbar", 
+      width = 0.6,
+      position = position_dodge(width = 0.8),
+      color = "black",
+      linewidth = 0.5,
+      show.legend = FALSE
+    ) +
+    stat_summary(
+      aes(group = interaction(orientation, treatment, Año)),
+      fun = mean, 
+      geom = "point",
+      shape = 18,
+      size = 2,
+      position = position_dodge(width = 0.8),
+      color = "red",
+      show.legend = FALSE
+    ) +
+    geom_text(
+      data = datos_n,
+      aes(label = paste0("n=", n), y = -0.05),
+      position = position_dodge(width = 0.8),
+      size = 2.5, 
+      vjust = 1, 
+      color = "black", 
+      fontface = "bold"
+    ) +
+    facet_grid(. ~ Año, scales = "free_x", space = "free_x") +
+    labs(
+      title = paste(titulo, "-", ecosystem_seleccionado, "(biotypes)"),
+      x = "",
+      y = titulo,
+      fill = "treatment:"
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "right",
+      axis.text.x = element_text(angle = 0, hjust = 0.5, vjust = 1, size = 7),
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 9),
+      legend.text = element_text(size = 7),
+      legend.title = element_text(size = 7),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      strip.text = element_text(face = "bold", size = 8)
+    ) +
+    # CORREGIDO: Colores intercambiados según lo solicitado
+    scale_fill_manual(values = c("E" = "#a7c957", "C" = "#0077b6")) +
+    scale_y_continuous(expand = expansion(mult = c(0.1, 0.1)))
+  
+  # Aplicar límites del eje Y si es necesario
+  if (indice == "Simpson") {
+    p <- p + coord_cartesian(ylim = c(0, 1))
+  } else if (indice == "Shannon") {
+    p <- p + coord_cartesian(ylim = c(0, 2))  # Para diversidad funcional de biotypes
+  }
+  
+  return(p)
+}
+
+# 3. FUNCIÓN PARA GRÁFICAS DE ROBLEDAL POR plot Y altitude (AMBOS AÑOS)
+crear_grafico_robledal_altitude_combinado <- function(df, indice, titulo) {
+  
+  datos_robledal <- df %>%
+    filter(ecosystem == "Robledal")
+  
+  if (nrow(datos_robledal) == 0) {
+    return(NULL)
+  }
+  
+  # Crear etiqueta de plot-altitude
+  datos_robledal <- datos_robledal %>%
+    mutate(plot_altitude = paste(plot, "-", altitude, "m.s.n.m."))
+  
+  # Calcular n para cada grupo (número de verbatim_microstationes)
+  datos_n <- datos_robledal %>%
+    group_by(plot_altitude, orientation, treatment, Año) %>%
+    summarise(n = n_distinct(verbatim_microstation), .groups = 'drop')
+  
+  # Ordenar por altitude
+  orden_plots <- datos_robledal %>%
+    arrange(altitude) %>%
+    pull(plot_altitude) %>%
+    unique()
+  
+  datos_robledal <- datos_robledal %>%
+    mutate(plot_altitude = factor(plot_altitude, levels = orden_plots))
+  
+  p <- ggplot(datos_robledal, aes(x = plot_altitude, y = .data[[indice]], 
+                                 fill = treatment,
+                                 pattern = orientation)) +
+    geom_boxplot_pattern(
+      aes(group = interaction(plot_altitude, treatment, orientation, Año)),
+      position = position_dodge2(preserve = "single", width = 0.8),
+      outlier.shape = NA,
+      coef = 1.5,
+      alpha = 0.7,
+      pattern_fill = "black",
+      pattern_angle = 45,
+      pattern_density = 0.1,
+      pattern_spacing = 0.025,
+      pattern_key_scale_factor = 0.6
+    ) +
+    geom_point(
+      position = position_jitterdodge(jitter.width = 0.15, dodge.width = 0.8),
+      size = 0.8, 
+      color = "black",
+      alpha = 0.6
+    ) +
+    stat_summary(
+      aes(group = interaction(plot_altitude, treatment, orientation, Año)),
+      fun = median, 
+      geom = "crossbar", 
+      width = 0.5,
+      position = position_dodge(width = 0.8),
+      color = "black",
+      linewidth = 0.4,
+      show.legend = FALSE
+    ) +
+    stat_summary(
+      aes(group = interaction(plot_altitude, treatment, orientation, Año)),
+      fun = mean, 
+      geom = "point",
+      shape = 18,
+      size = 1.5,
+      position = position_dodge(width = 0.8),
+      color = "red",
+      show.legend = FALSE
+    ) +
+    geom_text(
+      data = datos_n %>% mutate(plot_altitude = factor(plot_altitude, levels = orden_plots)),
+      aes(label = paste0("n=", n), y = -0.05),
+      position = position_dodge(width = 0.8),
+      size = 1.5, 
+      vjust = 1, 
+      color = "black", 
+      fontface = "bold"
+    ) +
+    facet_grid(. ~ Año, scales = "free_x", space = "free_x") +
+    labs(
+      title = paste(titulo, "- Robledal", "(biotypes)"),
+      x = "",
+      y = titulo,
+      fill = "treatment:",
+      pattern = ""
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "right",
+      axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 6),
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 9),
+      legend.text = element_text(size = 7),
+      legend.title = element_text(size = 7),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      strip.text = element_text(face = "bold", size = 8)
+    ) +
+    # CORREGIDO: Colores intercambiados según lo solicitado
+    scale_fill_manual(
+      values = c("E" = "#a7c957", "C" = "#0077b6"),
+      guide = guide_legend(override.aes = list(pattern = "none"))
+    ) +
+    scale_pattern_manual(
+      values = c("North" = "none", "South" = "stripe"),
+      guide = guide_legend(override.aes = list(fill = "white", 
+                                              color = "black",
+                                              pattern_fill = "black"))
+    ) +
+    scale_y_continuous(expand = expansion(mult = c(0.1, 0.1)))
+  
+  # Aplicar límites del eje Y si es necesario
+  if (indice == "Simpson") {
+    p <- p + coord_cartesian(ylim = c(0, 1))
+  } else if (indice == "Shannon") {
+    p <- p + coord_cartesian(ylim = c(0, 2))  # Para diversidad funcional de biotypes
+  }
+  
+  return(p)
+}
+
+# GENERAR TODAS LAS GRÁFICAS COMBINADAS
+
+#cat("=== GRÁFICAS COMBINADAS POR ecosystem (2024-2025) - DIVERSIDAD FUNCIONAL ===\n")
+p1_riqueza <- crear_grafico_ecosystem_combinado(datos_combinados, "Riqueza", "Riqueza")
+p1_simpson <- crear_grafico_ecosystem_combinado(datos_combinados, "Simpson", "Índice de Simpson")
+p1_shannon <- crear_grafico_ecosystem_combinado(datos_combinados, "Shannon", "Índice de Shannon")
+print(p1_riqueza)
+print(p1_simpson)
+print(p1_shannon)
+
+#cat("\n=== GRÁFICAS COMBINADAS POR ORIENTACIÓN (2024-2025) - DIVERSIDAD FUNCIONAL ===\n")
+for(ecosystem in c("Robledal", "Matorral A.M.")) {
+  p2_riqueza <- crear_grafico_orientation_combinado(datos_combinados, "Riqueza", "Riqueza", ecosystem)
+  p2_simpson <- crear_grafico_orientation_combinado(datos_combinados, "Simpson", "Índice de Simpson", ecosystem)
+  p2_shannon <- crear_grafico_orientation_combinado(datos_combinados, "Shannon", "Índice de Shannon", ecosystem)
+  if(!is.null(p2_riqueza)) print(p2_riqueza)
+  if(!is.null(p2_simpson)) print(p2_simpson)
+  if(!is.null(p2_shannon)) print(p2_shannon)
+}
+
+#cat("\n=== GRÁFICAS COMBINADAS DE ROBLEDAL POR altitude (2024-2025) - DIVERSIDAD FUNCIONAL ===\n")
+p3_riqueza <- crear_grafico_robledal_altitude_combinado(datos_combinados, "Riqueza", "Riqueza")
+p3_simpson <- crear_grafico_robledal_altitude_combinado(datos_combinados, "Simpson", "Índice de Simpson")
+p3_shannon <- crear_grafico_robledal_altitude_combinado(datos_combinados, "Shannon", "Índice de Shannon")
+if(!is.null(p3_riqueza)) print(p3_riqueza)
+if(!is.null(p3_simpson)) print(p3_simpson)
+if(!is.null(p3_shannon)) print(p3_shannon)
+
+```
+
+### Diversidad formas de vida:
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+
+# PREPARACIÓN DE LA BASE DE DATOS
+
+library(DBI)
+library(RPostgres)
+con <- dbConnect(
+  RPostgres::Postgres(),
+  dbname = "your-database",
+  host = "your-IP",      # o la IP del servidor (ej. 192.168.1.50)
+  port = 5432,             # 5432 es el puerto por defecto de Postgres
+  user = "your-user",
+  password = "your-password" # Ver nota de seguridad abajo
+)
+
+datos <- dbReadTable(con, "int_herbaceous_species")
+
+dbDisconnect(con)
+
+# Cargar librerías
+library(dplyr)
+library(vegan)
+library(tidyr)
+library(ggplot2)
+library(ggpubr)
+library(purrr)
+library(lme4)
+library(lmerTest)
+library(emmeans)
+library(lubridate)
+library(ggpattern)
+
+
+# Convertir date a formato Date y crear columna Año
+datos$date <- as.Date(datos$date)
+datos <- datos %>%
+  mutate(Año = lubridate::year(date))
+
+# Crear subsets por año
+datos_2024_sub <- datos %>% filter(Año == 2024)
+datos_2025_sub <- datos %>% filter(Año == 2025)
+
+# FUNCIÓN PARA PROCESAR DATOS DE UN AÑO - CORREGIDA Y MEJORADA
+procesar_datos_año <- function(datos_subset, año) {
+  
+  # CORRECCIÓN: El nombre correcto parece ser verbatim_microstation, no verbatim_verbatim_microstation
+  # ELIMINAR MICROESTACIONES ESPECÍFICAS: 60, 63 y 57 de plot CA
+  datos_filtrados <- datos_subset %>%
+    filter(!(plot == "CA" & verbatim_microstation %in% c(57, 60, 63)))
+  
+  # RECATEGORIZACIÓN DE ECOSYSTEMS - REEMPLAZAR LA COLUMNA ECOSYSTEM
+  datos_filtrados <- datos_filtrados %>%
+    mutate(ecosystem = case_when(
+      ecosystem == "Holm oak forest (Quercus ilex)" & grepl("F", plot, ignore.case = TRUE) ~ "Encinar seco",
+      ecosystem == "Holm oak forest (Quercus ilex)" & grepl("C", plot, ignore.case = TRUE) ~ "Encinar húmedo",
+      ecosystem == "Aleppo pine plantation (Pinus halepensis)" ~ "P_halepensis",
+      ecosystem == "Scots pine plantation (Pinus sylvestris)" ~ "P_sylvestris",
+      ecosystem %in% c("Juniper scrub (Juniperus communis)", "Cushion scrub (Genista versicolor/Cytisus galianoi)") ~ "Matorral A.M.",
+      ecosystem == "Maple forest (Sorbus Aria - Acer opalus)" ~ "Robledal",
+      ecosystem == "Pyrenean oak forest (Quercus pyrenaica)" ~ "Robledal",
+      TRUE ~ ecosystem
+    ))
+  
+  # 1. FILTRAR COLUMNAS DE ESPECIES ANTES DE PIVOTEAR
+  # Identificar columnas de especies
+  especies_cols <- datos_filtrados %>%
+    select(ends_with("_species")) %>%
+    names()
+  
+  # Convertir columnas de especies a caracteres y eliminar espacios en blanco
+  datos_filtrados <- datos_filtrados %>%
+    mutate(across(all_of(especies_cols), 
+                  ~ ifelse(is.na(.) | trimws(as.character(.)) == "", NA, as.character(.))))
+  
+  # Pivotear a formato largo
+  datos_largos_formas <- datos_filtrados %>%
+    pivot_longer(
+      cols = all_of(especies_cols),
+      names_to = "FormaVida",
+      values_to = "species",
+      values_drop_na = TRUE
+    ) %>%
+    # Filtrar filas donde species esté vacío o sea solo espacios
+    filter(!is.na(species), 
+           trimws(species) != "", 
+           !grepl("^\\s*$", species)) %>%
+    mutate(
+      # Asegurar que cover sea numérico
+      cover = case_when(
+        FormaVida == "shrub_species" ~ as.numeric(shrub_total_cover_perc),
+        FormaVida == "tree_species" ~ as.numeric(tree_total_cover_perc),
+        FormaVida == "scrub_species" ~ as.numeric(scrub_total_cover_perc),
+        FormaVida == "herb_species" ~ as.numeric(herb_total_cover_perc),
+        TRUE ~ NA_real_
+      ),
+      # Recategorizar formas de vida
+      FormaVida = case_when(
+        FormaVida == "herb_species" & life_cycle == "Annual" ~ 
+          "specieHerb_anual",
+        FormaVida == "herb_species" & life_cycle == "Perennial" ~ 
+          "specieHerb_perenne",
+        FormaVida == "herb_species" & (is.na(life_cycle) | 
+          trimws(life_cycle) == "") ~ "Others",
+        TRUE ~ FormaVida
+      )
+    ) %>%
+    # Filtro clave: elimina las filas marcadas como "Otros" (herbáceas sin ciclo)
+    # y también filtra valores inválidos
+    filter(FormaVida != "Others", 
+           !is.na(FormaVida), 
+           trimws(FormaVida) != "",
+           !is.na(cover), 
+           is.numeric(cover),
+           cover >= 0) %>%
+    select(plot, altitude, verbatim_microstation, treatment, FormaVida, cover, ecosystem, orientation)
+  
+  # Verificar si hay datos después del filtrado
+  if (nrow(datos_largos_formas) == 0) {
+    warning(paste("No hay datos válidos después del filtrado para el año", año))
+    return(data.frame())
+  }
+  
+  # Calcular índices de diversidad de formas de vida A NIVEL DE MICROESTACIÓN
+  resultados_diversidad_formas <- datos_largos_formas %>%
+    group_by(plot, altitude, verbatim_microstation, treatment, FormaVida, ecosystem, orientation) %>%
+    summarise(Abundancia = sum(cover, na.rm = TRUE), .groups = 'drop') %>%
+    group_by(plot, altitude, verbatim_microstation, treatment, ecosystem, orientation) %>%
+    summarise(
+      Riqueza = n_distinct(FormaVida),
+      Simpson = ifelse(n_distinct(FormaVida) > 0 && sum(Abundancia) > 0, 
+                      diversity(Abundancia, index = "simpson"), 
+                      0),
+      Shannon = ifelse(n_distinct(FormaVida) > 0 && sum(Abundancia) > 0, 
+                      diversity(Abundancia, index = "shannon"), 
+                      0),
+      .groups = 'drop'
+    ) %>%
+    mutate(Año = año)
+  
+  return(resultados_diversidad_formas)
+}
+
+# Aplicar la función a los subsets
+datos_2024 <- procesar_datos_año(datos_subset = datos_2024_sub, año = 2024)
+datos_2025 <- procesar_datos_año(datos_subset = datos_2025_sub, año = 2025)
+
+# Combinar datos de ambos años
+datos_combinados <- bind_rows(datos_2024, datos_2025)
+
+# Definir orden de ecosystems
+orden_ecosystems <- c("P_halepensis", "Encinar seco", "Encinar húmedo", "Robledal", "P_sylvestris", "Matorral A.M.")
+
+# 1. FUNCIÓN PARA GRÁFICAS POR ecosystem (AMBOS AÑOS)
+crear_grafico_ecosystem_combinado <- function(df, indice, titulo) {
+  
+  # Calcular n para cada grupo (número de verbatim_microstationes)
+  datos_n <- df %>%
+    group_by(ecosystem, treatment, Año) %>%
+    summarise(n = n_distinct(verbatim_microstation), .groups = 'drop')
+  
+  # Asegurar que todas las combinaciones estén presentes
+  combinaciones_completas <- expand.grid(
+    ecosystem = unique(df$ecosystem),
+    treatment = c("C", "E"),
+    Año = c(2024, 2025),
+    stringsAsFactors = FALSE
+  )
+  
+  datos_completos <- df %>%
+    right_join(combinaciones_completas, by = c("ecosystem", "treatment", "Año")) %>%
+    left_join(datos_n, by = c("ecosystem", "treatment", "Año")) %>%
+    mutate(
+      n = ifelse(is.na(n), 0, n),
+      ecosystem = factor(ecosystem, levels = orden_ecosystems)
+    )
+  
+  # Definir límites del eje Y según el índice
+  y_limits <- if (indice == "Simpson") {
+    c(0, 1)
+  } else if (indice == "Shannon") {
+    c(0, 2)  # Para diversidad de formas de vida
+  } else {
+    c(0, max(datos_completos[[indice]], na.rm = TRUE) * 1.1)
+  }
+  
+  p <- ggplot(datos_completos, aes(x = ecosystem, y = .data[[indice]], fill = treatment)) +
+    geom_boxplot(
+      aes(group = interaction(ecosystem, treatment, Año)),
+      position = position_dodge2(preserve = "single", width = 0.8),
+      outlier.shape = NA,  # Ocultamos outliers para representarlos manualmente después
+      coef = 1.5,  # Bigotes hasta Q3 + 1.5IQR y Q1 - 1.5IQR
+      alpha = 0.7
+    ) +
+    # Añadir puntos individuales de cada microestación
+    geom_point(
+      position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.8),
+      size = 0.8, 
+      color = "black",
+      alpha = 0.6
+    ) +
+    # Añadir mediana (línea negra)
+    stat_summary(
+      aes(group = interaction(ecosystem, treatment, Año)),
+      fun = median, 
+      geom = "crossbar", 
+      width = 0.6,
+      position = position_dodge(width = 0.8),
+      color = "black",
+      linewidth = 0.5,
+      show.legend = FALSE
+    ) +
+    # Añadir media (rombo rojo)
+    stat_summary(
+      aes(group = interaction(ecosystem, treatment, Año)),
+      fun = mean, 
+      geom = "point",
+      shape = 18,  # Rombo
+      size = 2,
+      position = position_dodge(width = 0.8),
+      color = "red",
+      show.legend = FALSE
+    ) +
+    # Añadir texto con n
+    geom_text(
+      data = datos_n %>% mutate(ecosystem = factor(ecosystem, levels = orden_ecosystems)),
+      aes(label = paste0("n=", n), y = -0.05 * diff(y_limits)),
+      position = position_dodge(width = 0.8),
+      size = 1.5, 
+      vjust = 1, 
+      color = "black", 
+      fontface = "bold"
+    ) +
+    facet_grid(. ~ Año, scales = "free_x", space = "free_x") +
+    labs(
+      title = paste(titulo, "por ecosystem", "(Formas de vida)"),
+      x = "",
+      y = titulo,
+      fill = "treatment:"
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "right",
+      axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 7),
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 10),
+      legend.text = element_text(size = 7),
+      legend.title = element_text(size = 7),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      panel.grid.major.y = element_line(color = "grey80", linewidth = 0.2),
+      panel.grid.minor.y = element_blank(),
+      strip.text = element_text(face = "bold", size = 8)
+    ) +
+    # CORREGIDO: Colores intercambiados según lo solicitado
+    scale_fill_manual(values = c("E" = "#a7c957", "C" = "#0077b6")) +
+    scale_y_continuous(expand = expansion(mult = c(0.1, 0.1))) +
+    coord_cartesian(ylim = y_limits)
+  
+  return(p)
+}
+
+# 2. FUNCIÓN PARA GRÁFICAS POR ORIENTACIÓN (AMBOS AÑOS)
+crear_grafico_orientation_combinado <- function(df, indice, titulo, ecosystem_seleccionado) {
+  
+  datos_filtrados <- df %>%
+    filter(ecosystem == ecosystem_seleccionado & orientation %in% c("North", "South"))
+  
+  if (nrow(datos_filtrados) == 0) {
+    return(NULL)
+  }
+  
+  # Calcular n para cada grupo (número de verbatim_microstationes)
+  datos_n <- datos_filtrados %>%
+    group_by(orientation, treatment, Año) %>%
+    summarise(n = n_distinct(verbatim_microstation), .groups = 'drop')
+  
+  p <- ggplot(datos_filtrados, aes(x = orientation, y = .data[[indice]], fill = treatment)) +
+    geom_boxplot(
+      aes(group = interaction(orientation, treatment, Año)),
+      position = position_dodge2(preserve = "single", width = 0.8),
+      outlier.shape = NA,
+      coef = 1.5,
+      alpha = 0.7
+    ) +
+    geom_point(
+      position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.8),
+      size = 0.8, 
+      color = "black",
+      alpha = 0.6
+    ) +
+    stat_summary(
+      aes(group = interaction(orientation, treatment, Año)),
+      fun = median, 
+      geom = "crossbar", 
+      width = 0.6,
+      position = position_dodge(width = 0.8),
+      color = "black",
+      linewidth = 0.5,
+      show.legend = FALSE
+    ) +
+    stat_summary(
+      aes(group = interaction(orientation, treatment, Año)),
+      fun = mean, 
+      geom = "point",
+      shape = 18,
+      size = 2,
+      position = position_dodge(width = 0.8),
+      color = "red",
+      show.legend = FALSE
+    ) +
+    geom_text(
+      data = datos_n,
+      aes(label = paste0("n=", n), y = -0.05),
+      position = position_dodge(width = 0.8),
+      size = 2.5, 
+      vjust = 1, 
+      color = "black", 
+      fontface = "bold"
+    ) +
+    facet_grid(. ~ Año, scales = "free_x", space = "free_x") +
+    labs(
+      title = paste(titulo, "-", ecosystem_seleccionado, "(Formas de vida)"),
+      x = "",
+      y = titulo,
+      fill = "treatment:"
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "right",
+      axis.text.x = element_text(angle = 0, hjust = 0.5, vjust = 1, size = 7),
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 9),
+      legend.text = element_text(size = 7),
+      legend.title = element_text(size = 7),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      strip.text = element_text(face = "bold", size = 8)
+    ) +
+    # CORREGIDO: Colores intercambiados según lo solicitado
+    scale_fill_manual(values = c("E" = "#a7c957", "C" = "#0077b6")) +
+    scale_y_continuous(expand = expansion(mult = c(0.1, 0.1)))
+  
+  # Aplicar límites del eje Y si es necesario
+  if (indice == "Simpson") {
+    p <- p + coord_cartesian(ylim = c(0, 1))
+  } else if (indice == "Shannon") {
+    p <- p + coord_cartesian(ylim = c(0, 2))  # Para diversidad de formas de vida
+  }
+  
+  return(p)
+}
+
+# 3. FUNCIÓN PARA GRÁFICAS DE ROBLEDAL POR plot Y altitude (AMBOS AÑOS)
+crear_grafico_robledal_altitude_combinado <- function(df, indice, titulo) {
+  
+  datos_robledal <- df %>%
+    filter(ecosystem == "Robledal")
+  
+  if (nrow(datos_robledal) == 0) {
+    return(NULL)
+  }
+  
+  # Crear etiqueta de plot-altitude
+  datos_robledal <- datos_robledal %>%
+    mutate(plot_altitude = paste(plot, "-", altitude, "m.s.n.m."))
+  
+  # Calcular n para cada grupo (número de verbatim_microstationes)
+  datos_n <- datos_robledal %>%
+    group_by(plot_altitude, orientation, treatment, Año) %>%
+    summarise(n = n_distinct(verbatim_microstation), .groups = 'drop')
+  
+  # Ordenar por altitude
+  orden_plots <- datos_robledal %>%
+    arrange(altitude) %>%
+    pull(plot_altitude) %>%
+    unique()
+  
+  datos_robledal <- datos_robledal %>%
+    mutate(plot_altitude = factor(plot_altitude, levels = orden_plots))
+  
+  p <- ggplot(datos_robledal, aes(x = plot_altitude, y = .data[[indice]], 
+                                 fill = treatment,
+                                 pattern = orientation)) +
+    geom_boxplot_pattern(
+      aes(group = interaction(plot_altitude, treatment, orientation, Año)),
+      position = position_dodge2(preserve = "single", width = 0.8),
+      outlier.shape = NA,
+      coef = 1.5,
+      alpha = 0.7,
+      pattern_fill = "black",
+      pattern_angle = 45,
+      pattern_density = 0.1,
+      pattern_spacing = 0.025,
+      pattern_key_scale_factor = 0.6
+    ) +
+    geom_point(
+      position = position_jitterdodge(jitter.width = 0.15, dodge.width = 0.8),
+      size = 0.8, 
+      color = "black",
+      alpha = 0.6
+    ) +
+    stat_summary(
+      aes(group = interaction(plot_altitude, treatment, orientation, Año)),
+      fun = median, 
+      geom = "crossbar", 
+      width = 0.5,
+      position = position_dodge(width = 0.8),
+      color = "black",
+      linewidth = 0.4,
+      show.legend = FALSE
+    ) +
+    stat_summary(
+      aes(group = interaction(plot_altitude, treatment, orientation, Año)),
+      fun = mean, 
+      geom = "point",
+      shape = 18,
+      size = 1.5,
+      position = position_dodge(width = 0.8),
+      color = "red",
+      show.legend = FALSE
+    ) +
+    geom_text(
+      data = datos_n %>% mutate(plot_altitude = factor(plot_altitude, levels = orden_plots)),
+      aes(label = paste0("n=", n), y = -0.05),
+      position = position_dodge(width = 0.8),
+      size = 1.5, 
+      vjust = 1, 
+      color = "black", 
+      fontface = "bold"
+    ) +
+    facet_grid(. ~ Año, scales = "free_x", space = "free_x") +
+    labs(
+      title = paste(titulo, "- Robledal", "(Formas de vida)"),
+      x = "",
+      y = titulo,
+      fill = "treatment:",
+      pattern = ""
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "right",
+      axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 6),
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 9),
+      legend.text = element_text(size = 7),
+      legend.title = element_text(size = 7),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      strip.text = element_text(face = "bold", size = 8)
+    ) +
+    # CORREGIDO: Colores intercambiados según lo solicitado
+    scale_fill_manual(
+      values = c("E" = "#a7c957", "C" = "#0077b6"),
+      guide = guide_legend(override.aes = list(pattern = "none"))
+    ) +
+    scale_pattern_manual(
+      values = c("North" = "none", "South" = "stripe"),
+      guide = guide_legend(override.aes = list(fill = "white", 
+                                              color = "black",
+                                              pattern_fill = "black"))
+    ) +
+    scale_y_continuous(expand = expansion(mult = c(0.1, 0.1)))
+  
+  # Aplicar límites del eje Y si es necesario
+  if (indice == "Simpson") {
+    p <- p + coord_cartesian(ylim = c(0, 1))
+  } else if (indice == "Shannon") {
+    p <- p + coord_cartesian(ylim = c(0, 2))  # Para diversidad de formas de vida
+  }
+  
+  return(p)
+}
+
+# GENERAR TODAS LAS GRÁFICAS COMBINADAS
+
+#cat("=== GRÁFICAS COMBINADAS POR ecosystem (2024-2025) - DIVERSIDAD DE FORMAS DE VIDA ===\n")
+p1_riqueza <- crear_grafico_ecosystem_combinado(datos_combinados, "Riqueza", "Riqueza")
+p1_simpson <- crear_grafico_ecosystem_combinado(datos_combinados, "Simpson", "Índice de Simpson")
+p1_shannon <- crear_grafico_ecosystem_combinado(datos_combinados, "Shannon", "Índice de Shannon")
+print(p1_riqueza)
+print(p1_simpson)
+print(p1_shannon)
+
+#cat("\n=== GRÁFICAS COMBINADAS POR ORIENTACIÓN (2024-2025) - DIVERSIDAD DE FORMAS DE VIDA ===\n")
+for(ecosystem in c("Robledal", "Matorral A.M.")) {
+  p2_riqueza <- crear_grafico_orientation_combinado(datos_combinados, "Riqueza", "Riqueza", ecosystem)
+  p2_simpson <- crear_grafico_orientation_combinado(datos_combinados, "Simpson", "Índice de Simpson", ecosystem)
+  p2_shannon <- crear_grafico_orientation_combinado(datos_combinados, "Shannon", "Índice de Shannon", ecosystem)
+  if(!is.null(p2_riqueza)) print(p2_riqueza)
+  if(!is.null(p2_simpson)) print(p2_simpson)
+  if(!is.null(p2_shannon)) print(p2_shannon)
+}
+
+#cat("\n=== GRÁFICAS COMBINADAS DE ROBLEDAL POR altitude (2024-2025) - DIVERSIDAD DE FORMAS DE VIDA ===\n")
+p3_riqueza <- crear_grafico_robledal_altitude_combinado(datos_combinados, "Riqueza", "Riqueza")
+p3_simpson <- crear_grafico_robledal_altitude_combinado(datos_combinados, "Simpson", "Índice de Simpson")
+p3_shannon <- crear_grafico_robledal_altitude_combinado(datos_combinados, "Shannon", "Índice de Shannon")
+if(!is.null(p3_riqueza)) print(p3_riqueza)
+if(!is.null(p3_simpson)) print(p3_simpson)
+if(!is.null(p3_shannon)) print(p3_shannon)
+
+```
+
+## ANEXO 1: Porcentaje de cover formas de vida:
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+
+# PREPARACIÓN DE LA BASE DE DATOS
+
+library(DBI)
+library(RPostgres)
+con <- dbConnect(
+  RPostgres::Postgres(),
+  dbname = "your-database",
+  host = "your-IP",      # o la IP del servidor (ej. 192.168.1.50)
+  port = 5432,             # 5432 es el puerto por defecto de Postgres
+  user = "your-user",
+  password = "your-password" # Ver nota de seguridad abajo
+)
+
+datos_combinados <- dbReadTable(con, "int_herbaceous_species")
+
+dbDisconnect(con)
+
+# Cargar librerías
+library(dplyr)
+library(vegan)
+library(tidyr)
+library(ggplot2)
+library(ggpubr)
+library(purrr)
+library(lme4)
+library(lmerTest)
+library(emmeans)
+library(lubridate)
+library(ggpattern)
+
+
+# Convertir date a formato Date y crear columna Año
+datos_combinados$date <- as.Date(datos_combinados$date)
+datos_combinados <- datos_combinados %>%
+  mutate(Año = lubridate::year(date))
+
+datos_combinados <- datos_combinados %>%
+    mutate(ecosystem = case_when(
+      ecosystem == "Holm oak forest (Quercus ilex)" & grepl("F", plot, ignore.case = TRUE) ~ "Encinar seco",
+      ecosystem == "Holm oak forest (Quercus ilex)" & grepl("C", plot, ignore.case = TRUE) ~ "Encinar húmedo",
+      ecosystem == "Aleppo pine plantation (Pinus halepensis)" ~ "P_halepensis",
+      ecosystem == "Scots pine plantation (Pinus sylvestris)" ~ "P_sylvestris",
+      ecosystem %in% c("Juniper scrub (Juniperus communis)", "Cushion scrub (Genista versicolor/Cytisus galianoi)") ~ "Matorral A.M.",
+      ecosystem == "Maple forest (Sorbus Aria - Acer opalus)" ~ "Robledal",
+      ecosystem == "Pyrenean oak forest (Quercus pyrenaica)" ~ "Robledal",
+      TRUE ~ ecosystem
+    ))
+
+# FILTRAR verbatim_microstationES ESPECÍFICAS - ELIMINAR 60, 63 y 57 de plot CA, altitude 1900
+datos_combinados <- datos_combinados %>%
+  filter(!(plot == "CA" & altitude == 1900 & verbatim_microstation %in% c(60, 63, 57)))
+
+# Pivotear a formato largo
+  datos_largos_formas <- datos_combinados %>%
+    pivot_longer(
+      cols = ends_with("_species"),
+      names_to = "FormaVida",
+      values_to = "species",
+      values_drop_na = TRUE
+    ) %>%
+    filter(species != "") %>%
+    mutate(
+      cover = case_when(
+        FormaVida == "shrub_species" ~ shrub_total_cover_perc,
+        FormaVida == "tree_species" ~ tree_total_cover_perc,
+        FormaVida == "scrub_species" ~ scrub_total_cover_perc,
+        FormaVida == "herb_species" ~ herb_total_cover_perc
+      ),
+      FormaVida = case_when(
+        FormaVida == "herb_species" & life_cycle == "Annual" ~ 
+          "specieHerb_anual",
+        FormaVida == "herb_species" & life_cycle == "Perennial" ~ 
+          "specieHerb_perenne",
+        TRUE ~ FormaVida
+      )
+    ) %>%
+
+  # Filtrar para eliminar casos sin ciclo de vida en herbáceas
+  filter(!is.na(FormaVida), 
+         !is.na(cover),
+         !(FormaVida == "herb_species" & (is.na(life_cycle) | life_cycle == ""))) %>%
+  dplyr::select(plot, altitude, verbatim_microstation, treatment, FormaVida, cover, ecosystem, orientation, Año)
+
+# Definir todos los tipos de FormaVida
+formas_vida_completas <- c("shrub_species", "tree_species", "scrub_species", 
+                           "specieHerb_anual", "specieHerb_perenne")
+
+# Calcular cover total por grupo y forma de vida - MODIFICADO: incluyendo verbatim_microstation
+cover_formas <- datos_largos_formas %>%
+  # Asegurarnos de incluir todas las formas de vida, incluso con 0 cover
+  complete(nesting(plot, altitude, verbatim_microstation, treatment, ecosystem, orientation, Año),
+           FormaVida = formas_vida_completas,
+           fill = list(cover = 0)) %>%
+  group_by(plot, altitude, verbatim_microstation, treatment, ecosystem, orientation, Año, FormaVida) %>%
+  summarise(coverTotal = sum(cover, na.rm = TRUE)) %>%
+  group_by(plot, altitude, verbatim_microstation, treatment, ecosystem, orientation, Año) %>%
+  mutate(Porcentajecover = (coverTotal / sum(coverTotal)) * 100) %>%
+  # Convertir FormaVida en factor ordenado
+  mutate(FormaVida = factor(FormaVida, levels = formas_vida_completas)) %>%
+  # Eliminar NA y filtrar solo formas de vida definidas
+  filter(!is.na(Porcentajecover), FormaVida %in% formas_vida_completas)
+
+# GRÁFICAS POR ecosystem RECLASIFICADO
+crear_grafico_cover_ecosystem <- function(df, ecosystem_seleccionado) {
+  
+  datos_filtrados <- df %>%
+    filter(ecosystem == ecosystem_seleccionado) %>%
+    # Filtrar solo formas de vida definidas y eliminar NA
+    filter(FormaVida %in% formas_vida_completas, !is.na(FormaVida))
+  
+  if (nrow(datos_filtrados) == 0) {
+    return(NULL)
+  }
+  
+  # Calcular n para cada grupo (número de verbatim_microstationes)
+  datos_n <- datos_filtrados %>%
+    group_by(Año, treatment, FormaVida) %>%
+    summarise(n = n_distinct(verbatim_microstation), .groups = 'drop') %>%
+    filter(!is.na(FormaVida))  # Eliminar NA en FormaVida
+  
+  # Calcular estadísticas para la media
+  stats_data <- datos_filtrados %>%
+    group_by(Año, treatment, FormaVida) %>%
+    summarise(
+      media = mean(Porcentajecover, na.rm = TRUE),
+      .groups = 'drop'
+    ) %>%
+    filter(!is.na(FormaVida))  # Eliminar NA en FormaVida
+  
+  # Combinar datos con n
+  datos_completos <- datos_filtrados %>%
+    left_join(datos_n, by = c("Año", "treatment", "FormaVida")) %>%
+    filter(!is.na(FormaVida))  # Eliminar NA en FormaVida
+  
+  p <- ggplot(datos_completos, aes(x = FormaVida, y = Porcentajecover, fill = treatment)) +
+    geom_boxplot(alpha = 0.7, outlier.shape = NA) +
+    # Puntos individuales de verbatim_microstationes
+    geom_point(aes(group = treatment), 
+               position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.8), 
+               size = 1.5, alpha = 0.6, color = "black") +
+    # Línea de mediana
+    stat_summary(aes(group = treatment), 
+                 fun = median, geom = "crossbar", 
+                 position = position_dodge(0.8),
+                 width = 0.6, color = "black", size = 0.4) +
+    # Punto para la media
+    geom_point(data = stats_data, 
+               aes(y = media, group = treatment),
+               position = position_dodge(0.8),
+               shape = 18, size = 2.5, color = "red") +
+    # Texto con n (número de verbatim_microstationes) - ARRIBA DEL GRÁFICO
+    geom_text(aes(label = paste0("n=", n), y = 105),  # Posicionado arriba del 100%
+              position = position_dodge(0.8), 
+              size = 1.5, color = "black", fontface = "bold") +  # Tamaño 1.5
+    labs(
+      title = paste("cover por Forma de Vida -", ecosystem_seleccionado),
+      subtitle = "Comparación 2024 vs 2025 a nivel de Microestación",
+      x = "Forma de Vida",
+      y = "Porcentaje de cover (%)",
+      fill = "treatment:"
+    ) +
+    facet_grid(. ~ Año, scales = "free_x", space = "free_x") +
+    theme_minimal() +
+    theme(
+      legend.position = "top",
+      axis.text.x = element_text(angle = 45, hjust = 1, size = 9),
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
+      plot.subtitle = element_text(hjust = 0.5, size = 11),
+      legend.text = element_text(size = 10),
+      legend.title = element_text(size = 10, face = "bold"),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      panel.grid.major.y = element_line(color = "grey80", linewidth = 0.3),
+      panel.grid.minor.y = element_blank(),
+      # Estilo más limpio para las facetas - sin fondo gris
+      strip.text = element_text(size = 12, face = "bold", color = "black"),
+      strip.background = element_blank(),  # Eliminar el fondo gris
+      panel.spacing = unit(1, "lines"),
+      panel.border = element_rect(color = "grey80", fill = NA, linewidth = 0.5)  # Borde sutil para separar
+    ) +
+    scale_fill_manual(values = c("C" = "#0077b6", "E" = "#a7c957")) +
+    # Extender el límite Y para que quepan las "n" arriba
+    scale_y_continuous(limits = c(0, 110), expand = expansion(mult = c(0, 0.1))) +
+    # Asegurar que solo se muestren las formas de vida definidas
+    scale_x_discrete(drop = TRUE)
+  
+  return(p)
+}
+
+# GENERAR TODAS LAS GRÁFICAS
+
+#cat("=== GRÁFICAS POR ecosystem RECLASIFICADO (cover FORMAS DE VIDA) ===\n")
+ecosystems <- unique(cover_formas$ecosystem)
+
+for(ecosystem in ecosystems) {
+  p_eco <- crear_grafico_cover_ecosystem(cover_formas, ecosystem)
+  if(!is.null(p_eco)) {
+    print(p_eco)
+  }
+}
+
+```
+
+## ANEXO 2: Porcentaje de verde evolución fenofases:
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+
+# PREPARACIÓN DE LA BASE DE DATOS
+
+library(DBI)
+library(RPostgres)
+con <- dbConnect(
+  RPostgres::Postgres(),
+  dbname = "your-database",
+  host = "your-IP",      # o la IP del servidor (ej. 192.168.1.50)
+  port = 5432,             # 5432 es el puerto por defecto de Postgres
+  user = "your-user",
+  password = "your-password" # Ver nota de seguridad abajo
+)
+
+datos_combinados <- dbReadTable(con, "int_herbaceous_species")
+
+dbDisconnect(con)
+
+
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+library(tidyr)
+
+# Convertir date a formato Date y crear columna Año
+datos_combinados$date <- as.Date(datos_combinados$date)
+datos_combinados <- datos_combinados %>%
+  mutate(Año = lubridate::year(date))
+
+datos_combinados <- datos_combinados %>%
+    mutate(ecosystem = case_when(
+      ecosystem == "Holm oak forest (Quercus ilex)" & grepl("F", plot, ignore.case = TRUE) ~ "Encinar seco",
+      ecosystem == "Holm oak forest (Quercus ilex)" & grepl("C", plot, ignore.case = TRUE) ~ "Encinar húmedo",
+      ecosystem == "Aleppo pine plantation (Pinus halepensis)" ~ "P_halepensis",
+      ecosystem == "Scots pine plantation (Pinus sylvestris)" ~ "P_sylvestris",
+      ecosystem %in% c("Juniper scrub (Juniperus communis)", "Cushion scrub (Genista versicolor/Cytisus galianoi)") ~ "Matorral A.M.",
+      ecosystem == "Maple forest (Sorbus Aria - Acer opalus)" ~ "Robledal",
+      ecosystem == "Pyrenean oak forest (Quercus pyrenaica)" ~ "Robledal",
+      TRUE ~ ecosystem
+    )) %>%
+  filter(!is.na(phenophase), phenophase != "", !is.na(treatment))
+
+# FILTRAR SOLO PLANTAS HERBÁCEAS
+# Pivotear para obtener solo las species herbáceas
+datos_herbaceas <- datos_combinados %>%
+  pivot_longer(
+    cols = ends_with("herb_species"),
+    names_to = "TipoHerbacea",
+    values_to = "species",
+    values_drop_na = TRUE
+  ) %>%
+  filter(species != "", !is.na(species)) %>%
+  # Seleccionar solo las columnas necesarias
+  dplyr::select(plot, altitude, verbatim_microstation, date, ecosystem, treatment, 
+                phenophase, species, Año, life_cycle)
+
+# Filtrar y preparar datos de fenofases de plantas herbáceas
+datos_fenofases_herbaceas <- datos_herbaceas %>%
+  filter(phenophase %in% c("Vegetative", "Flowering", "Fruiting", "Dead"),
+         treatment %in% c("C", "E")) %>%
+  mutate(
+    Mes = lubridate::month(date, label = TRUE, abbr = FALSE),
+    estado = case_when(
+      phenophase %in% c("Vegetative", "Flowering", "Fruiting") ~ "verde",
+      phenophase == "Dead" ~ "seco",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  filter(!is.na(estado))
+
+# Definir meses seleccionados por año
+meses_2024 <- c("mayo", "junio", "julio", "agosto", "septiembre", "octubre")
+meses_2025 <- c("mayo", "junio", "julio", "agosto", "septiembre")
+
+# Calcular porcentajes mensuales por ecosystem, treatment y año (SOLO HERBÁCEAS)
+porcentajes_mensuales_herbaceas <- datos_fenofases_herbaceas %>%
+  # Filtrar meses según el año
+  mutate(
+    Mes = as.character(Mes),
+    meses_seleccionados = ifelse(Año == "2024", 
+                                 Mes %in% meses_2024, 
+                                 Mes %in% meses_2025)
+  ) %>%
+  filter(meses_seleccionados) %>%
+  group_by(Año, ecosystem, treatment, Mes) %>%
+  summarise(
+    total = n(),
+    verde = sum(estado == "verde"),
+    porcentaje_verde = verde / total * 100,
+    .groups = 'drop'
+  ) %>%
+  # Calcular estadísticas resumen (media y IC)
+  group_by(Año, ecosystem, treatment, Mes) %>%
+  summarise(
+    Media = mean(porcentaje_verde, na.rm = TRUE),
+    n = n(),
+    Desviacion = sd(porcentaje_verde, na.rm = TRUE),
+    IC = ifelse(n > 1, qt(0.975, df = n-1) * (Desviacion / sqrt(n)), 0),
+    .groups = 'drop'
+  ) %>%
+  mutate(
+    IC_inferior = pmax(Media - IC, 0),
+    IC_superior = pmin(Media + IC, 100)
+  )
+
+# Definir colores para cada ecosystem
+colores_ecosystems <- c(
+  "Encinar húmedo" = "#1f77b4",
+  "Encinar seco" = "#ff7f0e", 
+  "Robledal" = "#2ca02c",
+  "Matorral A.M." = "#d62728",
+  "P_halepensis" = "#9467bd",
+  "P_sylvestris" = "#8c564b"
+)
+
+# Función para crear gráfica de evolución fenológica por año (SOLO HERBÁCEAS)
+crear_grafica_evolucion_anual_herbaceas <- function(df, año_seleccionado) {
+  
+  datos_filtrados <- df %>%
+    filter(Año == año_seleccionado) %>%
+    mutate(
+      # Combinar ecosystem y treatment para la leyenda
+      Grupo = paste(ecosystem, "-", treatment),
+      # Definir el tipo de línea según el treatment
+      TipoLinea = ifelse(treatment == "E", "solid", "dashed")
+    )
+  
+  if (nrow(datos_filtrados) == 0) {
+    return(NULL)
+  }
+  
+  # Definir meses según el año
+  meses_seleccionados <- if(año_seleccionado == "2024") meses_2024 else meses_2025
+  
+  # Ordenar los meses correctamente
+  datos_filtrados <- datos_filtrados %>%
+    mutate(Mes = factor(Mes, levels = meses_seleccionados))
+  
+  p <- ggplot(datos_filtrados, aes(x = Mes, y = Media, 
+                                   color = ecosystem, 
+                                   linetype = treatment,
+                                   group = Grupo)) +
+    # Líneas conectando los puntos
+    geom_line(size = 1) +
+    # Puntos para las medias
+    geom_point(size = 2) +
+    # Barras de error (intervalo de confianza)
+    geom_errorbar(
+      aes(ymin = IC_inferior, ymax = IC_superior),
+      width = 0.2,
+      size = 0.5,
+      alpha = 0.6
+    ) +
+    labs(
+      title = paste("Evolución Fenológica - Herbáceas -", año_seleccionado),
+      subtitle = "",
+      x = "",
+      y = "Porcentaje de Verde (%)",
+      color = "ecosystem:",
+      linetype = "treatment:"
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "right",
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 12),
+      plot.subtitle = element_text(hjust = 0.5, size = 12),
+      axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+      axis.text.y = element_text(size = 10),
+      legend.text = element_text(size = 9),
+      legend.title = element_text(size = 10, face = "bold"),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      panel.grid.major.y = element_line(color = "grey90", linewidth = 0.3),
+      panel.grid.minor.y = element_blank(),
+      legend.key.width = unit(1.5, "cm")
+    ) +
+    scale_color_manual(values = colores_ecosystems) +
+    scale_linetype_manual(
+      values = c("C" = "dashed", "E" = "solid"),
+      labels = c("C", "E")
+    ) +
+    scale_y_continuous(limits = c(0, 100), breaks = seq(0, 100, 20)) +
+    scale_x_discrete(limits = meses_seleccionados, drop = FALSE) +
+    # Guías para mejorar la legibilidad de la leyenda
+    guides(
+      color = guide_legend(override.aes = list(linetype = "solid", size = 1)),
+      linetype = guide_legend(override.aes = list(color = "black", size = 1))
+    )
+  
+  return(p)
+}
+
+# GENERAR GRÁFICAS POR AÑO (SOLO HERBÁCEAS)
+
+# Gráfica para 2024
+p_2024_herbaceas <- crear_grafica_evolucion_anual_herbaceas(porcentajes_mensuales_herbaceas, "2024")
+if(!is.null(p_2024_herbaceas)) {
+  print(p_2024_herbaceas)
+  # Guardar gráfica
+  ggsave("Evolucion_Fenologica_Herbaceas_2024.png", plot = p_2024_herbaceas, width = 12, height = 8, dpi = 300, bg = "white")
+}
+
+# Gráfica para 2025
+p_2025_herbaceas <- crear_grafica_evolucion_anual_herbaceas(porcentajes_mensuales_herbaceas, "2025")
+if(!is.null(p_2025_herbaceas)) {
+  print(p_2025_herbaceas)
+  # Guardar gráfica
+  #ggsave("Evolucion_Fenologica_Herbaceas_2025.png", plot = p_2025_herbaceas, width = 12, height = 8, dpi = 300, bg = "white")
+}
+
+# Mostrar resumen general de datos de herbáceas
+resumen_datos_herbaceas <- datos_fenofases_herbaceas %>%
+  mutate(
+    meses_seleccionados = ifelse(Año == "2024", 
+                                 Mes %in% meses_2024, 
+                                 Mes %in% meses_2025)
+  ) %>%
+  filter(meses_seleccionados) %>%
+  group_by(Año, ecosystem, treatment) %>%
+  summarise(
+    n_observaciones = n(),
+    n_species_unicas = n_distinct(species),
+    .groups = 'drop'
+  )
+
+#cat("Resumen de observaciones de plantas herbáceas por año, ecosystem y treatment:\n")
+#print(resumen_datos_herbaceas)
+
+# Mostrar también las species únicas encontradas por ecosystem
+species_por_ecosystem <- datos_herbaceas %>%
+  group_by(Año, ecosystem) %>%
+  summarise(
+    species_unicas = paste(unique(species), collapse = ", "),
+    n_species = n_distinct(species),
+    .groups = 'drop'
+  )
+
+#cat("\nspecies herbáceas por ecosystem y año:\n")
+#print(species_por_ecosystem)
+
+```
