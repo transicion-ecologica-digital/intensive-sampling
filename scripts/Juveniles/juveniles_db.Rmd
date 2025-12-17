@@ -1,0 +1,676 @@
+---
+title: "C.1) Diversidad y abundancia de juveniles leñosos"
+author: ''
+date: ''
+output:
+  word_document: default
+  html_document: default
+---
+
+# Introducción:
+
+El objetivo C.1) se centra en determinar la diversidad y abundancia de especies leñosas que existen en el banco de árboles jóvenes, tanto dentro de los Es biogénicos creados por los bosques de enebros, robles y pinos como fuera de ellos, en la matriz ambiental.
+
+# Hipótesis:
+
+Nuestra hipótesis es que los Es biogénicos deberían tener un conjunto de reclutas más abundante y diversos que los espacios abiertos que los rodean, ya que la lluvia de semillas es mayor dentro de los Es y las plántulas sobreviven mejor en su microambiente. Cuanto mayor sea la diversidad de especies que componen el banco de reclutamiento, más probable será que contengan especies con diferentes rasgos funcionales y fenologías, lo que permite la complementariedad de nichos en el uso de los recursos y un período de crecimiento más largo de la comunidad de árboles jóvenes. 
+
+# Metodología original:
+
+Se plantea monitorizar la abundancia y diversidad de plántulas dentro del círculo de muestreo de 5 m de radio asociado a una microestación determinada. Para ello, es necesario registrar la identidad y el número de árboles jóvenes de más de dos años. Los daños causados por los ramoneadores se cuantificarán en los árboles jóvenes establecidos de especies arbóreas (de hasta 2 m de altura) y en los arbustos, mediante la determinación de la intensidad del ramoneo. El muestreo de campo se prevee realizar en julio/septiembre de 2023.
+
+# Metodología real:
+
+Se ha determinado la abundancia y diversidad de especies leñosas o juveniles, en cada una de las verbatim_microstationes que componen nuestras plots de estudio. 
+De este modo, se ha delimitado un cuadrado de 5m alrededor de la microestación y, a su vez, 4 cuadrantes de 2.5 x 2.5 m. Dentro de cada cuadrante, se ha representado la especie predominante y su cobertura. Finalmente, se apuntan cada una de las especies de juveniles que se observan en ese cuadrante, así como su altura.
+Este seguimiento, se ha realizado una sola vez en cada microestación, en los meses de junio, julio, octubre y noviembre de 2024, y también en el mes de julio de 2025, para las verbatim_microstationes que faltaban del año anterior.
+
+# Análisis de datos: 
+
+Se realizó un análisis exploratorio mediante diagramas de caja y bigotes para comparar el número de individuos cada 100m2 entre treatments (C vs. E), estratificado por ecosystem, orientación y altitude altitudinal. Los diagramas muestran la mediana (línea central), el rango intercuartílico (caja), la dispersión total (bigotes) y valores atípicos (puntos individuales), complementados con la media aritmética (punto rojo).
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+# Cargar librerías necesarias
+library(ggplot2)
+library(dplyr)
+library(tidyverse)
+library(ggpattern)
+library(DBI)
+library(RPostgres)
+con <- dbConnect(
+  RPostgres::Postgres(),
+  dbname = "your-database",
+  host = "your-IP",      # o la IP del servidor (ej. 192.168.1.50)
+  port = 5432,             # 5432 es el puerto por defecto de Postgres
+  user = "your-user",
+  password = "your-password" # Ver nota de seguridad abajo
+)
+
+datos <- dbReadTable(con, "staging_woody_species")
+
+dbDisconnect(con)
+
+# 1. RECATEGORIZACIÓN DE ecosystemS Y FILTRO
+datos <- datos %>%
+  # Recategorización de ecosystems
+  mutate(ecosystem = case_when(
+    ecosystem == "Holm oak forest (Quercus ilex)" & grepl("F", plot, ignore.case = TRUE) ~ "Encinar seco",
+    ecosystem == "Holm oak forest (Quercus ilex)" & grepl("C", plot, ignore.case = TRUE) ~ "Encinar húmedo",
+    ecosystem == "Aleppo pine plantation (Pinus halepensis)" ~ "P_halepensis",
+    ecosystem == "Scots pine plantation (Pinus sylvestris)" ~ "P_sylvestris",
+    ecosystem %in% c("Juniper scrub (Juniperus communis)", "Cushion scrub (Genista versicolor/Cytisus galianoi)") ~ "Matorral A.M.",
+    ecosystem == "Maple forest (Sorbus Aria - Acer opalus)" ~ "Robledal",
+    ecosystem=="Pyrenean oak forest (Quercus pyrenaica)" ~ "Robledal",
+    TRUE ~ ecosystem
+  )) %>%
+  # FILTRAR: Eliminar las verbatim_microstationes específicas que no quieres
+  filter(!(plot == "CA" & altitude == 1900 & verbatim_microstation %in% c(60, 63, 57)))
+
+# 2. LIMPIEZA DE DATOS CORREGIDA
+datos_filtrados <- datos %>%
+  # Mantener registros donde haya especie juvenil O número de juveniles
+  filter((juvenile_species != "" & !is.na(juvenile_species)) | 
+           (!is.na(juvenile_count) & juvenile_count >= 0))
+
+# Asegurar que juvenile_count sea numérico
+datos_filtrados$juvenile_count <- as.numeric(datos_filtrados$juvenile_count)
+# Reemplazar NA por 0 en juvenile_count
+datos_filtrados$juvenile_count[is.na(datos_filtrados$juvenile_count)] <- 0
+
+# Para juvenile_species, si está vacío pero juvenile_count = 0, poner "Sin juveniles"
+datos_filtrados <- datos_filtrados %>%
+  mutate(juvenile_species = ifelse(
+    (juvenile_species == "" | is.na(juvenile_species)) & juvenile_count == 0,
+    "Sin juveniles",
+    juvenile_species
+  ))
+
+datos_filtrados$altitude <- as.factor(datos_filtrados$altitude)
+datos_filtrados$orientation <- as.factor(datos_filtrados$orientation)
+datos_filtrados$ecosystem <- as.factor(datos_filtrados$ecosystem)
+
+# 3. CALCULAR DENSIDAD POR 100m² POR MICROESTACIÓN
+area_verbatim_microstation <- 3.1416 * (5^2)  # 78.54 m²
+factor_conversion <- 100 / area_verbatim_microstation  # Factor para convertir a 100m²
+
+# Agrupar por microestación y calcular densidad total por microestación
+datos_por_verbatim_microstation <- datos_filtrados %>%
+  group_by(plot, altitude, treatment, ecosystem, orientation, verbatim_microstation) %>%
+  summarise(
+    Total_juveniles_micro = sum(juvenile_count, na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  mutate(Densidad_100m2 = Total_juveniles_micro * factor_conversion)
+
+# 4. FUNCIÓN PARA GRÁFICA DE ESPECIES (MODIFICADA A CAJAS Y BIGOTES) - SIN n
+crear_grafico_especies <- function(df, titulo = "Número de Juveniles por Especie") {
+  
+  # Para especies, necesitamos los datos originales pero agrupados por especie y microestación
+  datos_especies_micro <- df %>%
+    filter(juvenile_species != "Sin juveniles") %>%
+    group_by(plot, altitude, treatment, ecosystem, orientation, verbatim_microstation, juvenile_species) %>%
+    summarise(
+      Total_juveniles_micro = sum(juvenile_count, na.rm = TRUE),
+      .groups = 'drop'
+    ) %>%
+    mutate(Densidad_100m2 = Total_juveniles_micro * factor_conversion)
+  
+  # Verificar si hay datos
+  if (nrow(datos_especies_micro) == 0) {
+    return(NULL)
+  }
+  
+  # Calcular medias para el punto rojo
+  datos_medias <- datos_especies_micro %>%
+    group_by(juvenile_species, treatment) %>%
+    summarise(
+      Media_grupo = mean(Densidad_100m2, na.rm = TRUE),
+      .groups = 'drop'
+    )
+  
+  # Ordenar especies por densidad total
+  especies_orden <- datos_especies_micro %>%
+    group_by(juvenile_species) %>%
+    summarise(Total = mean(Densidad_100m2, na.rm = TRUE)) %>%
+    arrange(desc(Total)) %>%
+    pull(juvenile_species)
+  
+  datos_especies_micro$juvenile_species <- factor(datos_especies_micro$juvenile_species, 
+                                                    levels = especies_orden)
+  
+  datos_medias <- datos_medias %>%
+    mutate(juvenile_species = factor(juvenile_species, levels = especies_orden))
+  
+  # Crear gráfico de caja y bigotes
+  p <- ggplot(datos_especies_micro, aes(x = juvenile_species, y = Densidad_100m2, 
+                                        fill = treatment)) +
+    geom_boxplot(
+      position = position_dodge(width = 0.8),
+      width = 0.7,
+      outlier.shape = NA,
+      outlier.size = 1.5,
+      outlier.fill = "white",
+      outlier.color = "black"
+    ) +
+    # Añadir puntos individuales - EN NEGRO
+    geom_point(
+      color = "black",
+      position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.8),
+      size = 1.5,
+      alpha = 0.6,
+      show.legend = FALSE
+    ) +
+    # Añadir rombo rojo para la media
+    geom_point(
+      data = datos_medias,
+      aes(y = Media_grupo, group = treatment),
+      shape = 23,  # 23 = rombo
+      size = 2,
+      fill = "red",
+      color = "darkred",
+      position = position_dodge(width = 0.8),
+      show.legend = FALSE
+    ) +
+    # QUITAMOS EL TEXTO CON n EN ESTA GRÁFICA
+    labs(
+      title = titulo,
+      x = "Especies Juveniles",
+      y = "Número de Juveniles (100m²)",
+      fill = "treatment"
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "right",
+      axis.text.x = element_text(angle = 45, hjust = 1, size = 7),
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 8),
+      legend.text = element_text(size = 7),
+      legend.title = element_text(size = 7),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      panel.grid.major.y = element_line(color = "grey80", linewidth = 0.2),
+      panel.grid.minor.y = element_blank()
+    ) +
+    scale_fill_manual(
+      values = c("C" = "#0077b6", "E" = "#a7c957")
+    ) +
+    coord_cartesian(ylim = c(0, NA))
+    
+  return(p)
+}
+
+# 5. FUNCIÓN PARA GRÁFICAS POR ecosystem (MODIFICADA A CAJAS Y BIGOTES)
+crear_grafico_ecosystem_juveniles <- function(df) {
+  
+  # Orden específico para los ecosystems
+  orden_ecosystems <- c("P_halepensis", "Encinar seco", "Encinar húmedo", "Robledal", "P_sylvestris", "Matorral A.M.")
+  
+  # Aplicar el orden
+  df_ordenado <- df %>%
+    mutate(ecosystem = factor(ecosystem, levels = orden_ecosystems))
+  
+  # Calcular número de verbatim_microstationes por grupo para el texto
+  datos_n <- df_ordenado %>%
+    group_by(ecosystem, treatment) %>%
+    summarise(n = n_distinct(paste(plot, altitude, verbatim_microstation)), .groups = 'drop')
+  
+  # Calcular medias para el punto rojo
+  datos_medias <- df_ordenado %>%
+    group_by(ecosystem, treatment) %>%
+    summarise(
+      Media_grupo = mean(Densidad_100m2, na.rm = TRUE),
+      .groups = 'drop'
+    )
+  
+  # Obtener el valor máximo para posicionar las etiquetas n
+  y_max <- max(df_ordenado$Densidad_100m2, na.rm = TRUE)
+  y_pos_n <- y_max * 1.05  # Posicionar las n un 5% por encima del máximo
+  
+  # Crear gráfico de caja y bigotes
+  p <- ggplot(df_ordenado, aes(x = ecosystem, y = Densidad_100m2, 
+                               fill = treatment)) +
+    geom_boxplot(
+      position = position_dodge(width = 0.8),
+      width = 0.7,
+      outlier.shape = NA,
+      outlier.size = 1.5,
+      outlier.fill = "white",
+      outlier.color = "black"
+    ) +
+    # Añadir puntos individuales - EN NEGRO
+    geom_point(
+      color = "black",
+      position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.8),
+      size = 1.5,
+      alpha = 0.6,
+      show.legend = FALSE
+    ) +
+    # Añadir rombo rojo para la media
+    geom_point(
+      data = datos_medias,
+      aes(y = Media_grupo, group = treatment),
+      shape = 23,  # 23 = rombo
+      size = 2,
+      fill = "red",
+      color = "darkred",
+      position = position_dodge(width = 0.8),
+      show.legend = FALSE
+    ) +
+    # Añadir texto con n - POSICIÓN CORREGIDA (ARRIBA DEL GRÁFICO)
+    geom_text(data = datos_n, 
+              aes(label = paste0("n=", n), y = y_pos_n),
+              position = position_dodge(width = 0.8),
+              size = 2.5, vjust = 0, color = "black", fontface = "bold") +
+    labs(
+      title = "Número de Juveniles por ecosystem",
+      x = "ecosystem",
+      y = "Número de Juveniles (100m²)",
+      fill = "treatment"
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "right",
+      axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 7),
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 8),
+      legend.text = element_text(size = 7),
+      legend.title = element_text(size = 7),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      panel.grid.major.y = element_line(color = "grey80", linewidth = 0.2),
+      panel.grid.minor.y = element_blank()
+    ) +
+    scale_fill_manual(
+      values = c("C" = "#0077b6", "E" = "#a7c957")
+    ) +
+    coord_cartesian(ylim = c(0, y_max * 1.1))
+  
+  return(p)
+}
+
+# 6. FUNCIÓN PARA GRÁFICAS POR ORIENTACIÓN (MODIFICADA A CAJAS Y BIGOTES)
+crear_grafico_orientation_juveniles <- function(df, ecosystem_seleccionado) {
+  
+  # Filtrar por ecosystem
+  datos_filtrados <- df %>%
+    filter(ecosystem == ecosystem_seleccionado & 
+             orientation %in% c("North", "South"))
+  
+  # Verificar si hay datos
+  if (nrow(datos_filtrados) == 0) {
+    return(NULL)
+  }
+  
+  # Calcular número de verbatim_microstationes por grupo para el texto
+  datos_n <- datos_filtrados %>%
+    group_by(orientation, treatment) %>%
+    summarise(n = n_distinct(paste(plot, altitude, verbatim_microstation)), .groups = 'drop')
+  
+  # Calcular medias para el punto rojo
+  datos_medias <- datos_filtrados %>%
+    group_by(orientation, treatment) %>%
+    summarise(
+      Media_grupo = mean(Densidad_100m2, na.rm = TRUE),
+      .groups = 'drop'
+    )
+  
+  # Obtener el valor máximo para posicionar las etiquetas n
+  y_max <- max(datos_filtrados$Densidad_100m2, na.rm = TRUE)
+  y_pos_n <- y_max * 1.05  # Posicionar las n un 5% por encima del máximo
+  
+  # Crear gráfico de caja y bigotes
+  p <- ggplot(datos_filtrados, aes(x = orientation, y = Densidad_100m2, 
+                                   fill = treatment)) +
+    geom_boxplot(
+      position = position_dodge(width = 0.8),
+      width = 0.7,
+      outlier.shape = NA,
+      outlier.size = 1.5,
+      outlier.fill = "white",
+      outlier.color = "black"
+    ) +
+    # Añadir puntos individuales - EN NEGRO
+    geom_point(
+      color = "black",
+      position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.8),
+      size = 1.5,
+      alpha = 0.6,
+      show.legend = FALSE
+    ) +
+    # Añadir rombo rojo para la media
+    geom_point(
+      data = datos_medias,
+      aes(y = Media_grupo, group = treatment),
+      shape = 23,  # 23 = rombo
+      size = 2,
+      fill = "red",
+      color = "darkred",
+      position = position_dodge(width = 0.8),
+      show.legend = FALSE
+    ) +
+    # Añadir texto con n - POSICIÓN CORREGIDA (ARRIBA DEL GRÁFICO)
+    geom_text(data = datos_n, 
+              aes(label = paste0("n=", n), y = y_pos_n),
+              position = position_dodge(width = 0.8),
+              size = 2.5, vjust = 0, color = "black", fontface = "bold") +
+    labs(
+      title = paste("Número de Juveniles según exposición -", ecosystem_seleccionado),
+      x = "Exposición",
+      y = "Número de Juveniles (100m²)",
+      fill = "treatment"
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "right",
+      axis.text.x = element_text(angle = 0, hjust = 0.5, vjust = 1, size = 7),
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 8),
+      legend.text = element_text(size = 7),
+      legend.title = element_text(size = 7),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      panel.grid.major.y = element_line(color = "grey80", linewidth = 0.2),
+      panel.grid.minor.y = element_blank()
+    ) +
+    scale_fill_manual(
+      values = c("C" = "#0077b6", "E" = "#a7c957")
+    ) +
+    coord_cartesian(ylim = c(0, y_max * 1.1))
+  
+  return(p)
+}
+
+# 7. FUNCIÓN PARA GRÁFICAS DE ROBLEDAL POR plot Y altitude (MODIFICADA A CAJAS Y BIGOTES)
+crear_grafico_robledal_plots_juveniles <- function(df) {
+  
+  # Filtrar solo datos de Robledal
+  datos_robledal <- df %>%
+    filter(ecosystem == "Robledal")
+  
+  # Verificar si hay datos
+  if (nrow(datos_robledal) == 0) {
+    return(NULL)
+  }
+  
+  # Crear variable combinada para el eje X y ordenar
+  datos_robledal <- datos_robledal %>%
+    mutate(plot_altitude = paste(plot, "-", altitude, "m.s.n.m.")) %>%
+    arrange(altitude) %>%
+    mutate(plot_altitude = factor(plot_altitude, levels = unique(plot_altitude)))
+  
+  # Calcular número de verbatim_microstationes por grupo para el texto
+  datos_n <- datos_robledal %>%
+    group_by(plot_altitude, treatment) %>%
+    summarise(n = n_distinct(paste(plot, altitude, verbatim_microstation)), .groups = 'drop')
+  
+  # Calcular medias para el punto rojo
+  datos_medias <- datos_robledal %>%
+    group_by(plot_altitude, treatment, orientation) %>%
+    summarise(
+      Media_grupo = mean(Densidad_100m2, na.rm = TRUE),
+      .groups = 'drop'
+    )
+  
+  # Obtener el valor máximo para posicionar las etiquetas n
+  y_max <- max(datos_robledal$Densidad_100m2, na.rm = TRUE)
+  y_pos_n <- y_max * 1.05  # Posicionar las n un 5% por encima del máximo
+  
+  # Crear gráfico de caja y bigotes con patrones
+  p <- ggplot(datos_robledal, aes(x = plot_altitude, y = Densidad_100m2, 
+                                  fill = treatment)) +
+    geom_boxplot_pattern(
+      aes(pattern = orientation),
+      position = position_dodge(width = 0.8),
+      width = 0.7,
+      outlier.shape = NA,
+      outlier.size = 1.5,
+      outlier.fill = "white",
+      outlier.color = "black",
+      pattern_fill = "black",
+      pattern_angle = 45,
+      pattern_density = 0.1,
+      pattern_spacing = 0.025,
+      pattern_key_scale_factor = 0.6
+    ) +
+    # Añadir puntos individuales - EN NEGRO
+    geom_point(
+      color = "black",
+      position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.8),
+      size = 1.5,
+      alpha = 0.6,
+      show.legend = FALSE
+    ) +
+    # Añadir rombo rojo para la media
+    geom_point(
+      data = datos_medias,
+      aes(y = Media_grupo, group = interaction(treatment, orientation)),
+      shape = 23,  # 23 = rombo
+      size = 1.5,
+      fill = "red",
+      color = "darkred",
+      position = position_dodge(width = 0.8),
+      show.legend = FALSE
+    ) +
+    # Añadir texto con n - POSICIÓN CORREGIDA (ARRIBA DEL GRÁFICO)
+    geom_text(data = datos_n, 
+              aes(label = paste0("n=", n), y = y_pos_n),
+              position = position_dodge(width = 0.8),
+              size = 2, vjust = 0, color = "black", fontface = "bold") +
+    labs(
+      title = "Número de Juveniles por altitude - Robledal",
+      x = "",
+      y = "Número de Juveniles (100m²)",
+      fill = "treatment",
+      pattern = "Orientación"
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "right",
+      axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 7),
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 8),
+      legend.text = element_text(size = 7),
+      legend.title = element_text(size = 7),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      panel.grid.major.y = element_line(color = "grey80", linewidth = 0.2),
+      panel.grid.minor.y = element_blank()
+    ) +
+    scale_fill_manual(
+      values = c("C" = "#0077b6", "E" = "#a7c957"),
+      name = "treatment",
+      guide = guide_legend(override.aes = list(pattern = "none"))
+    ) +
+    scale_pattern_manual(
+      values = c("North" = "none", "South" = "stripe"),
+      name = "",
+      guide = guide_legend(override.aes = list(fill = "white", 
+                                               color = "black",
+                                               pattern_fill = "black"))
+    ) +
+    coord_cartesian(ylim = c(0, y_max * 1.1))
+  
+  return(p)
+}
+
+# 8. GENERAR TODAS LAS GRÁFICAS
+
+#cat("=== GRÁFICA DE ESPECIES ===\n")
+p_especies <- crear_grafico_especies(datos_filtrados)
+if(!is.null(p_especies)) print(p_especies)
+
+#cat("\n=== GRÁFICAS POR ecosystem ===\n")
+p_ecosystem <- crear_grafico_ecosystem_juveniles(datos_por_verbatim_microstation)
+print(p_ecosystem)
+
+#cat("\n=== GRÁFICAS POR ORIENTACIÓN (ROBLEDAL Y MATORRAL A.M.) ===\n")
+for(ecosystem in c("Robledal", "Matorral A.M.")) {
+  p <- crear_grafico_orientation_juveniles(datos_por_verbatim_microstation, ecosystem)
+  if(!is.null(p)) print(p)
+}
+
+#cat("\n=== GRÁFICAS DE ROBLEDAL POR plot Y altitude ===\n")
+p_robledal <- crear_grafico_robledal_plots_juveniles(datos_por_verbatim_microstation)
+if(!is.null(p_robledal)) print(p_robledal)
+
+#cat("\n¡Todas las gráficas de juveniles se han generado correctamente!\n")
+
+```
+
+## ANEXO 1: Especie de juveniles y número de individuos según treatment y plot
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+
+library(DBI)
+library(RPostgres)
+con <- dbConnect(
+  RPostgres::Postgres(),
+  dbname = "your-database",
+  host = "your-IP",      # o la IP del servidor (ej. 192.168.1.50)
+  port = 5432,             # 5432 es el puerto por defecto de Postgres
+  user = "your-user",
+  password = "your-password" # Ver nota de seguridad abajo
+)
+
+datos <- dbReadTable(con, "staging_woody_species")
+
+dbDisconnect(con)
+
+# RECATEGORIZACIÓN DE ecosystemS
+datos <- datos %>%
+  mutate(ecosystem = case_when(
+    ecosystem == "Holm oak forest (Quercus ilex)" & grepl("F", plot, ignore.case = TRUE) ~ "Encinar seco",
+    ecosystem == "Holm oak forest (Quercus ilex)" & grepl("C", plot, ignore.case = TRUE) ~ "Encinar húmedo",
+    ecosystem == "Aleppo pine plantation (Pinus halepensis)" ~ "P_halepensis",
+    ecosystem == "Scots pine plantation (Pinus sylvestris)" ~ "P_sylvestris",
+    ecosystem %in% c("Juniper scrub (Juniperus communis)", "Cushion scrub (Genista versicolor/Cytisus galianoi)") ~ "Matorral A.M.",
+    ecosystem == "Maple forest (Sorbus Aria - Acer opalus)" ~ "Robledal",
+    ecosystem=="Pyrenean oak forest (Quercus pyrenaica)" ~ "Robledal",
+    TRUE ~ ecosystem
+  ))
+
+# Cargar librerías necesarias
+library(ggplot2)
+library(dplyr)
+
+# Verificar la estructura de los datos
+#str(datos)
+#head(datos)
+
+# MODIFICACIÓN: Mantener todas las plots, pero filtrar "Sin juveniles" después
+# Primero, asegurarnos de que juvenile_count sea numérico y reemplazar NA por 0
+datos$juvenile_count <- as.numeric(datos$juvenile_count)
+datos$juvenile_count[is.na(datos$juvenile_count)] <- 0
+
+# Usar todos los datos de plots
+datos_filtrados <- datos
+
+datos_filtrados$altitude <- as.factor(datos_filtrados$altitude)
+datos_filtrados$orientation <- as.factor(datos_filtrados$orientation)
+datos_filtrados$ecosystem <- as.factor(datos_filtrados$ecosystem)
+
+# Crear combinaciones únicas de plot, altitude, ecosystem y orientation
+combinaciones_unicas <- datos_filtrados %>%
+  distinct(plot, altitude, ecosystem, orientation) %>%
+  arrange(desc(grepl("(North)", plot, fixed = TRUE)), plot)
+
+# Mostrar las combinaciones
+#cat("Combinaciones únicas encontradas:\n")
+#print(combinaciones_unicas)
+
+# Crear gráficos para cada combinación
+for(i in 1:nrow(combinaciones_unicas)) {
+  
+  plot_actual <- combinaciones_unicas$plot[i]
+  altitude_actual <- combinaciones_unicas$altitude[i]
+  ecosystem_actual <- combinaciones_unicas$ecosystem[i]
+  orientation_actual <- combinaciones_unicas$orientation[i]
+  
+  # Filtrar datos para la combinación actual, excluyendo "Sin juveniles"
+  datos_combinacion <- datos_filtrados %>% 
+    filter(plot == plot_actual, 
+           altitude == altitude_actual,
+           ecosystem == ecosystem_actual,
+           orientation == orientation_actual,
+           juvenile_species != "" & !is.na(juvenile_species)) %>%
+    group_by(juvenile_species, treatment) %>%
+    summarise(Num_juvenil = sum(juvenile_count, na.rm = TRUE), .groups = "drop")
+  
+  # Crear datos para el gráfico - siempre crear combinaciones de C y E
+  treatments_unicos <- c("C", "E")
+  
+  # Si hay especies registradas, usar esas especies
+  if(nrow(datos_combinacion) > 0) {
+    especies_unicas <- unique(datos_combinacion$juvenile_species)
+    
+    # Crear un dataframe completo con todas las combinaciones
+    datos_completos <- expand.grid(juvenile_species = especies_unicas, 
+                                  treatment = treatments_unicos)
+    
+    # Combinar con los datos reales, llenando con 0 los valores faltantes
+    datos_completos <- left_join(datos_completos, datos_combinacion, 
+                                by = c("juvenile_species", "treatment"))
+    datos_completos$Num_juvenil[is.na(datos_completos$Num_juvenil)] <- 0
+    
+  } else {
+    # Si no hay especies registradas, crear datos para AMBOS treatments
+    datos_completos <- data.frame(
+      juvenile_species = rep("placeholder", 2),
+      treatment = treatments_unicos,
+      Num_juvenil = 0
+    )
+  }
+  
+  # Ajustar altura mínima para TODAS las barras con valor 0 (0.1 para todas)
+  datos_completos <- datos_completos %>%
+    mutate(Num_juvenil_ajustado = ifelse(Num_juvenil == 0, 0.1, Num_juvenil))
+  
+  # Crear el gráfico con título que incluye orientation y ecosystem
+  p <- ggplot(datos_completos, aes(x = juvenile_species, y = Num_juvenil_ajustado, fill = treatment)) +
+    geom_col(position = "dodge", width = 0.7) +
+    geom_text(aes(label = ifelse(Num_juvenil > 0, Num_juvenil, "")), 
+              position = position_dodge(width = 0.7), 
+              vjust = -0.5, size = 3) +
+    scale_fill_manual(values = c("C" = "#023e8a", "E" = "#6a994e")) +
+    labs(title = paste("Juveniles:", plot_actual, "- altitude:", altitude_actual, "m.s.n.m"),
+         subtitle = paste("ecosystem:", ecosystem_actual, "- Orientación:", orientation_actual),
+         x = "Especies Juveniles",
+         y = "Número de Juveniles",
+         fill = "treatment") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 7),
+          plot.title = element_text(hjust = 0.5, face = "bold"),
+          plot.subtitle = element_text(hjust = 0.5, size = 10),
+          legend.position = "top",
+          panel.grid.major.x = element_blank(),
+          panel.grid.minor.x = element_blank(),
+          panel.grid.major.y = element_line(color = "grey90"),
+          panel.grid.minor.y = element_blank()) +
+    # EJE Y FIJO DE 0 A 40 PARA TODAS LAS GRÁFICAS
+    ylim(0, 40)
+  
+  # Si no hay especies, ocultar las etiquetas del eje X
+  if(nrow(datos_combinacion) == 0) {
+    p <- p + 
+      theme(axis.text.x = element_blank(),
+            axis.ticks.x = element_blank()) +
+      scale_x_discrete(labels = NULL)
+  }
+  
+  # Mostrar el gráfico
+  print(p)
+  
+  # Información de la combinación actual
+  #cat("Gráfico generado para: plot =", plot_actual, 
+      #"- altitude =", altitude_actual, 
+      #"- ecosystem =", ecosystem_actual,
+      #"- Orientación =", orientation_actual, 
+      #"- Número de especies:", ifelse(nrow(datos_combinacion) > 0, length(unique(datos_combinacion$juvenile_species)), "0"), "\n")
+}
+```
+
+# Resultados y conclusiones: 
+
+Analizando los resultados obtenidos, podemos afirmar que en la cara North, hay más especies (12) que en la cara South (9). Por otro lado, observamos que la distribución de la diversidad de especies se representa de manera desigual: 10 especies en C (con 112 individuos) y 10 en E (con 118 individuos) en la cara North (de las 12 totales) y 8 en C (con 200 individuos) y 6 en E (con 288 individuos) en la cara South (de las 9 totales para esta orientación). 
+
+De este modo, se observa que hay una mayor cantidad de individuos en la cara South (488) respecto a la cara North (230). 
+
+Así concluimos que la diversidad es similar entre treatments para la cara North, aunque el número de individuos es mayor en el E, mientras que existe una mayor diversidad en la matriz ambiental de la cara South, aunque con un mayor número de individuos en el E de esta orientación, al igual que sucede en la cara North.
+
+Se cumple la hipótesis de que hay mayor número de individuos bajo los Es biogénicos, mientras que la diversidad no cumple dicha premisa en la cara North al estar igualado el número de especies, a la vez que se contradice en la cara South, al ser superior el número de especies presentes en la matriz ambiental respecto al E biogénico.
