@@ -1,0 +1,821 @@
+---
+title: "Task B.1) Germinación de semillas de Berberis Hipanica"
+output: word_document
+---
+
+# Introducción:
+
+Para llevar a cabo este task, se siembran semillas de Berberis hispanica dentro y fuera de los refugios biogénicos. Elegimos esta especie porque es una especie abundante que se da de forma natural en bosques de enebros, robles y pinos, y porque sus semillas no tienen latencia y germinan al año siguiente de la siembra.
+
+# Hipótesis:
+Nuestra hipótesis es que el éxito de la germinación de las semillas y la supervivencia de las plántulas de Berberis hispanica será mayor en los refugios biogénicos que fuera de ellos, debido a la homeostasis microclimática y la fertilización del suelo que generan.
+
+# Metodología original:
+
+Realizaremos 3 puntos de siembra, colocando 10 semillas en cada punto enterradas a unos 3 cm de profundidad (total = 30 semillas) alrededor de cada microestación (Total: 84 microestaciones x 30 semillas) = 2520 semillas de Berberis hispanica sembradas. La plantación se realizará en octubre/noviembre de 2022 y se revisará mensualmente de abril a octubre de 2023 y 2024 para determinar el establecimiento y la supervivencia de las plántulas durante los dos años del proyecto.
+
+# Metodología real:
+
+Se plantaron semillas de Berberis hispánica en cada una de las microestaciones que componen las parcelas. Por cada microestación se pusieron 3 mallas metálicas, para evitar herbivoría, y dentro de cada malla 15 semillas, en tres grupos de 5 semillas separadas 4 cm entre ellas y a 3 cm de profundidad. 
+Las semillas se sembraron durante los meses de junio y julio de 2023, y se revisaron durante el periodo de muestreo de 2024, es decir, desde abril hasta octubre. Estas semillas no germinaron correctamente, y se volvieron a sembrar durante el mes de noviembre de 2024, repitiendo la misma metodología y siendo revisadas desde abril a septiembre de 2025. Tanto en 2024 como en 2025 no se realizó la revisión durante el mes de agosto. Las semillas sembradas en 2024, fueron recolectadas de Berberis silvestres ubicados en diferentes zonas de Sierra Nevada. 
+En 2023, las semillas fueron sembradas en 77 microestaciones, 3 mallas por microestación y 15 semillas por malla, se sembraron un total de 3465 semillas.
+En 2024, las semillas fueron sembradas en 84 microestaciones, ya que durante ese periodo se instalaron las microestaciones que faltaban en algunas de las parcelas, que no pudieron ser instaladas antes debido a la falta de sensores. Por tanto, en 2024 se sembraron 3780 semillas.
+
+# Análisis de datos:
+
+A continuación, se procede a analizar los datos obtenidos, mostrando los script al respecto y el tipo de análisis estadístico aplicado. Se realizó un análisis exploratorio mediante diagramas de caja y bigotes para comparar el porcentaje de germinación acumulada y superviviencia final (de dicha germinación previa) entre tratamientos (Control vs. Refugio), estratificado por ecosistema, orientación y cota altitudinal. Los diagramas muestran la mediana (línea central), el rango intercuartílico (caja), la dispersión total (bigotes) y valores atípicos (puntos individuales), complementados con la media aritmética (punto rojo).:
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+
+# PREPARACIÓN DE LA BASE DE DATOS
+
+# Cargar los datos
+setwd("C:/Users/Usuario/OneDrive - UNIVERSIDAD DE GRANADA/Refugios_biogenicos/Datos/Siembra_berberis")
+berberis <- read.csv("Siembra_berberis.csv", sep = ";", header = TRUE, stringsAsFactors = FALSE)
+
+# Cargar las librerías necesarias
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+library(tidyr)
+library(ggpattern)
+
+# ELIMINAR MICROESTACIONES 60, 63 y 57
+berberis <- subset(berberis, !Microestacion %in% c(60, 63, 57))
+
+# Crear el subset con la columna Berberis (suma de Vivo) INCLUYENDO Microestacion
+berberis_subset <- berberis %>%
+  group_by(Parcela, Cota, Ecosistema, Tratamiento, Fecha_revision, Orientacion, Microestacion) %>%
+  summarise(
+    Berberis = sum(Vivo, na.rm = TRUE),
+    .groups = 'drop'
+  )
+
+# Añadir la columna Porcentaje con las condiciones específicas
+berberis_subset <- berberis_subset %>%
+  mutate(
+    # Extraer el año de la fecha
+    Año = year(ymd(Fecha_revision)),
+    # Calcular el porcentaje según las condiciones
+    Porcentaje = case_when(
+      Parcela == "SanJuan" & Año == 2024 ~ (Berberis / 90) * 100,
+      TRUE ~ (Berberis / 135) * 100  # Para todos los demás casos
+    )
+  )
+
+# PASO 1: Encontrar el valor máximo de Berberis para cada combinación (sin considerar fecha)
+maximos_berberis <- berberis_subset %>%
+  group_by(Parcela, Cota, Ecosistema, Tratamiento, Año, Microestacion) %>%
+  summarise(
+    Max_Berberis = max(Berberis, na.rm = TRUE),
+    .groups = 'drop'
+  )
+
+# PASO 2: Encontrar la fecha más tardía de cada año para cada combinación y obtener Berberis_finales
+fechas_tardias <- berberis_subset %>%
+  group_by(Parcela, Cota, Ecosistema, Tratamiento, Año, Microestacion) %>%
+  summarise(
+    Fecha_tardia = max(ymd(Fecha_revision)),
+    Berberis_finales = first(Berberis[which(ymd(Fecha_revision) == max(ymd(Fecha_revision)))]),
+    .groups = 'drop'
+  )
+
+# PASO 3: Combinar los dos dataframes
+datos_combinados <- maximos_berberis %>%
+  left_join(fechas_tardias, by = c("Parcela", "Cota", "Ecosistema", "Tratamiento", "Año", "Microestacion"))
+
+# Calcular la columna Supervivencia
+datos_combinados <- datos_combinados %>%
+  mutate(
+    Supervivencia = (Berberis_finales / Max_Berberis) * 100,
+    # Reemplazar NaN por 0
+    Supervivencia = ifelse(is.nan(Supervivencia), 0, Supervivencia),
+    # También reemplazar posibles Inf por 0
+    Supervivencia = ifelse(is.infinite(Supervivencia), 0, Supervivencia)
+  )
+
+# PASO 4: Combinar berberis_subset con datos_combinados para añadir la columna Supervivencia
+berberis_subset <- berberis_subset %>%
+  mutate(Fecha_revision = ymd(Fecha_revision))
+
+datos_combinados <- datos_combinados %>%
+  mutate(Fecha_tardia = ymd(Fecha_tardia))
+
+# Combinar los dataframes
+berberis_final <- berberis_subset %>%
+  left_join(
+    datos_combinados %>% 
+      select(Parcela, Cota, Ecosistema, Tratamiento, Año, Microestacion, Fecha_tardia, Supervivencia),
+    by = c("Parcela", "Cota", "Ecosistema", "Tratamiento", "Año", "Microestacion")
+  ) %>%
+  mutate(
+    Supervivencia = ifelse(Fecha_revision == Fecha_tardia, Supervivencia, NA_real_)
+  ) %>%
+  select(-Fecha_tardia)
+
+berberis_final <- berberis_final %>%
+  rename(Fecha = Fecha_revision)
+
+# FUNCIONES PARA BOXPLOTS CON SEPARACIÓN POR AÑOS
+crear_boxplot_ecosistema_anio <- function(df, indice, titulo, variable_y) {
+  
+  # Calcular estadísticas para añadir a la gráfica
+  stats_df <- df %>%
+    group_by(Ecosistema_reclasificado, Tratamiento, Año) %>%
+    summarise(
+      n = n_distinct(Microestacion),  # n basado en microestaciones únicas
+      Media = mean(.data[[indice]], na.rm = TRUE),
+      Mediana = median(.data[[indice]], na.rm = TRUE),
+      .groups = 'drop'
+    )
+  
+  p <- ggplot(df, aes(x = Ecosistema_reclasificado, y = .data[[indice]], fill = Tratamiento)) +
+    geom_boxplot(
+      alpha = 0.7,
+      outlier.shape = 16,
+      outlier.size = 1.5,
+      outlier.alpha = 0.6,
+      width = 0.7
+    ) +
+    # Añadir puntos individuales
+    geom_point(
+      position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.7),
+      size = 1,
+      alpha = 0.5,
+      color = "black"
+    ) +
+    # Añadir media como punto rojo PARA CADA TRATAMIENTO POR SEPARADO
+    geom_point(
+      data = stats_df,
+      aes(y = Media, group = Tratamiento),
+      shape = 23,
+      size = 2,
+      fill = "red",
+      position = position_dodge(width = 0.7),
+      show.legend = FALSE
+    ) +
+    # Añadir texto con n (número de microestaciones)
+    geom_text(
+      data = stats_df,
+      aes(label = paste0("n=", n), y = -0.05 * max(df[[indice]], na.rm = TRUE)),
+      position = position_dodge(width = 0.7),
+      size = 2.5,
+      vjust = 0,
+      color = "black",
+      fontface = "bold"
+    ) +
+    facet_wrap(~ Año, ncol = 2) +
+    labs(
+      title = paste(titulo, "por Ecosistema"),
+      x = "",
+      y = variable_y,
+      fill = "Tratamiento:"
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "right",
+      axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 7),
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 12),
+      legend.text = element_text(size = 7),
+      legend.title = element_text(size = 7),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      panel.grid.major.y = element_line(color = "grey80", linewidth = 0.2),
+      panel.grid.minor.y = element_blank(),
+      strip.text = element_text(face = "bold", size = 8)
+    ) +
+    scale_fill_manual(values = c("Control" = "#0077b6", "Refugio" = "#a7c957")) +
+    scale_x_discrete(limits = c("P_halepensis", "Encinar seco", "Encinar húmedo", "Robledal", "P_sylvestris", "Matorral A.M."))
+  
+  return(p)
+}
+
+crear_boxplot_orientacion_anio <- function(df, indice, titulo, variable_y, ecosistema_seleccionado) {
+  
+  datos_filtrados <- df
+  
+  if (nrow(datos_filtrados) == 0) {
+    return(NULL)
+  }
+  
+  # Calcular estadísticas para añadir a la gráfica
+  stats_df <- datos_filtrados %>%
+    group_by(Exposicion, Tratamiento, Año) %>%
+    summarise(
+      n = n_distinct(Microestacion),  # n basado en microestaciones únicas
+      Media = mean(.data[[indice]], na.rm = TRUE),
+      Mediana = median(.data[[indice]], na.rm = TRUE),
+      .groups = 'drop'
+    )
+  
+  p <- ggplot(datos_filtrados, aes(x = Exposicion, y = .data[[indice]], fill = Tratamiento)) +
+    geom_boxplot(
+      alpha = 0.7,
+      outlier.shape = 16,
+      outlier.size = 1.5,
+      outlier.alpha = 0.6,
+      width = 0.7
+    ) +
+    # Añadir puntos individuales
+    geom_point(
+      position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.7),
+      size = 1,
+      alpha = 0.5,
+      color = "black"
+    ) +
+    # Añadir media como punto rojo PARA CADA TRATAMIENTO POR SEPARADO
+    geom_point(
+      data = stats_df,
+      aes(y = Media, group = Tratamiento),
+      shape = 23,
+      size = 2,
+      fill = "red",
+      position = position_dodge(width = 0.7),
+      show.legend = FALSE
+    ) +
+    # Añadir texto con n (número de microestaciones)
+    geom_text(
+      data = stats_df,
+      aes(label = paste0("n=", n), y = -0.05 * max(datos_filtrados[[indice]], na.rm = TRUE)),
+      position = position_dodge(width = 0.7),
+      size = 2.5,
+      vjust = 0,
+      color = "black",
+      fontface = "bold"
+    ) +
+    facet_wrap(~ Año, ncol = 2) +
+    labs(
+      title = paste(titulo, "-", ecosistema_seleccionado),
+      subtitle = "",
+      x = "",
+      y = variable_y,
+      fill = "Tratamiento:"
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "right",
+      axis.text.x = element_text(angle = 0, hjust = 0.5, vjust = 1, size = 7),
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 10),
+      plot.subtitle = element_text(hjust = 0.5, size = 7),
+      legend.text = element_text(size = 7),
+      legend.title = element_text(size = 7),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      panel.grid.major.y = element_line(color = "grey80", linewidth = 0.2),
+      panel.grid.minor.y = element_blank(),
+      strip.text = element_text(face = "bold", size = 8)
+    ) +
+    scale_fill_manual(values = c("Control" = "#0077b6", "Refugio" = "#a7c957"))
+  
+  return(p)
+}
+
+crear_boxplot_altitudinal_anio <- function(df, indice, titulo, variable_y) {
+  
+  if (nrow(df) == 0) {
+    return(NULL)
+  }
+  
+  # Calcular estadísticas para añadir a la gráfica
+  stats_df <- df %>%
+    group_by(Etiqueta_Altitud, Tratamiento, Orientacion, Año) %>%
+    summarise(
+      n = n_distinct(Microestacion),  # n basado en microestaciones únicas
+      Media = mean(.data[[indice]], na.rm = TRUE),
+      Mediana = median(.data[[indice]], na.rm = TRUE),
+      .groups = 'drop'
+    )
+  
+  p <- ggplot(df, aes(x = Etiqueta_Altitud, y = .data[[indice]], 
+                     fill = Tratamiento)) +
+    geom_boxplot_pattern(
+      aes(pattern = Orientacion),
+      alpha = 0.7,
+      outlier.shape = 16,
+      outlier.size = 1.5,
+      outlier.alpha = 0.6,
+      position = position_dodge(width = 0.8),
+      width = 0.7,
+      pattern_fill = "black",
+      pattern_angle = 45,
+      pattern_density = 0.1,
+      pattern_spacing = 0.025,
+      pattern_key_scale_factor = 0.6
+    ) +
+    # Añadir puntos individuales
+    geom_point(
+      aes(group = interaction(Tratamiento, Orientacion)),
+      position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.8),
+      size = 1,
+      alpha = 0.5,
+      color = "black"
+    ) +
+    # Añadir media como punto rojo PARA CADA TRATAMIENTO POR SEPARADO
+    geom_point(
+      data = stats_df,
+      aes(y = Media, group = interaction(Tratamiento, Orientacion)),
+      shape = 23,
+      size = 2,
+      fill = "red",
+      position = position_dodge(width = 0.8),
+      show.legend = FALSE
+    ) +
+    # Añadir texto con n (número de microestaciones)
+    geom_text(
+      data = stats_df,
+      aes(label = paste0("n=", n), 
+          y = -0.05 * max(df[[indice]], na.rm = TRUE)),
+      position = position_dodge(width = 0.8),
+      size = 2,
+      vjust = 0,
+      color = "black",
+      fontface = "bold"
+    ) +
+    facet_wrap(~ Año, ncol = 2) +
+    labs(
+      title = paste(titulo, "- Robledal"),
+      subtitle = "",
+      x = "",
+      y = variable_y,
+      fill = "Tratamiento:",
+      pattern = "Orientación:"
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "right",
+      axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 7),
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 10),
+      plot.subtitle = element_text(hjust = 0.5, size = 7),
+      legend.text = element_text(size = 7),
+      legend.title = element_text(size = 7),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      panel.grid.major.y = element_line(color = "grey80", linewidth = 0.2),
+      panel.grid.minor.y = element_blank(),
+      strip.text = element_text(face = "bold", size = 8)
+    ) +
+    scale_fill_manual(
+      values = c("Control" = "#0077b6", "Refugio" = "#a7c957"),
+      name = "Tratamiento:",
+      guide = guide_legend(override.aes = list(pattern = "none"))
+    ) +
+    scale_pattern_manual(
+      values = c("Norte" = "none", "Sur" = "stripe"),
+      name = "Orientación:",
+      guide = guide_legend(override.aes = list(fill = "white"))
+    )
+  
+  return(p)
+}
+
+# ANÁLISIS DE GERMINACIÓN ACUMULADA
+
+# Filtrar solo los años 2024 y 2025
+berberis_filtrado <- berberis_final %>%
+  filter(Año %in% c(2024, 2025))
+
+# Calcular solo el porcentaje máximo por Parcela, Cota, Año y Tratamiento INCLUYENDO Microestacion
+datos_graficas <- berberis_filtrado %>%
+  group_by(Parcela, Cota, Año, Tratamiento, Ecosistema, Orientacion, Microestacion) %>%
+  summarise(
+    Porcentaje_Max = max(Porcentaje, na.rm = TRUE),
+    .groups = 'drop'
+  )
+
+# RECLASIFICAR ECOSISTEMAS según las especificaciones
+datos_graficas <- datos_graficas %>%
+  mutate(Ecosistema_reclasificado = case_when(
+    Ecosistema == "Encinar" & grepl("Finana", Parcela, ignore.case = TRUE) ~ "Encinar seco",
+    Ecosistema == "Encinar" & grepl("Camarate", Parcela, ignore.case = TRUE) ~ "Encinar húmedo",
+    Ecosistema == "Pinar_ha" ~ "P_halepensis",
+    Ecosistema == "Pinar_sy" ~ "P_sylvestris",
+    Ecosistema %in% c("Enebral", "Piornal") ~ "Matorral A.M.",
+    Ecosistema == "Serbal-Aceral" ~ "Robledal",
+    TRUE ~ Ecosistema
+  )) %>%
+  # Ordenar los ecosistemas según el orden especificado
+  mutate(Ecosistema_reclasificado = factor(Ecosistema_reclasificado,
+                                          levels = c("P_halepensis", "Encinar seco", "Encinar húmedo", 
+                                                     "Robledal", "P_sylvestris", "Matorral A.M.")))
+
+# 1. GRÁFICA POR ECOSISTEMA - GERMINACIÓN (SEPARADO POR AÑOS)
+#cat("=== GERMINACIÓN ACUMULADA POR ECOSISTEMA (BOXPLOTS) - SEPARADO POR AÑOS ===\n")
+p_germ_ecosistema <- crear_boxplot_ecosistema_anio(datos_graficas, "Porcentaje_Max", "Germinación acumulada", "Germinación acumulada (%)")
+print(p_germ_ecosistema)
+
+# 2. GRÁFICA ROBLEDAL POR ORIENTACIÓN - GERMINACIÓN (SEPARADO POR AÑOS)
+#cat("\n=== GERMINACIÓN ACUMULADA - ROBLEDAL POR ORIENTACIÓN - SEPARADO POR AÑOS ===\n")
+datos_robledal_germ <- datos_graficas %>%
+  filter(Ecosistema_reclasificado == "Robledal") %>%
+  mutate(
+    Exposicion = case_when(
+      Parcela %in% c("Camarate", "Hortichuela", "Hortichuela_alta") ~ "Robledal Norte",
+      Parcela == "Canar" ~ "Robledal Sur",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  filter(!is.na(Exposicion))
+
+p_germ_robledal <- crear_boxplot_orientacion_anio(datos_robledal_germ, "Porcentaje_Max", "Germinación acumulada", "Germinación acumulada (%)", "Robledal")
+if(!is.null(p_germ_robledal)) print(p_germ_robledal)
+
+# 3. GRÁFICA MATORRAL A.M. POR ORIENTACIÓN - GERMINACIÓN (SEPARADO POR AÑOS)
+#cat("\n=== GERMINACIÓN ACUMULADA - MATORRAL A.M. POR ORIENTACIÓN - SEPARADO POR AÑOS ===\n")
+datos_matorral_germ <- datos_graficas %>%
+  filter(Ecosistema_reclasificado == "Matorral A.M.") %>%
+  mutate(
+    Exposicion = case_when(
+      Parcela %in% c("SanJuan", "Camarate") ~ "Matorral A.M. Norte",
+      Parcela == "Canar" ~ "Matorral A.M. Sur",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  filter(!is.na(Exposicion))
+
+p_germ_matorral <- crear_boxplot_orientacion_anio(datos_matorral_germ, "Porcentaje_Max", "Germinación acumulada", "Germinación acumulada (%)", "Matorral A.M.")
+if(!is.null(p_germ_matorral)) print(p_germ_matorral)
+
+# 4. GRÁFICA ALTITUDINAL ROBLEDAL - GERMINACIÓN (SEPARADO POR AÑOS)
+#cat("\n=== GERMINACIÓN ACUMULADA - ROBLEDAL ALTITUDINAL - SEPARADO POR AÑOS ===\n")
+datos_altitudinal_germ <- datos_graficas %>%
+  filter(
+    ((Parcela == "Hortichuela" & Cota == "1300") |
+    (Parcela == "Hortichuela_alta" & Cota == "1500") |
+    (Parcela == "Camarate" & Cota == "1700") |
+    (Parcela == "Canar" & Cota == "1700") |
+    (Parcela == "Canar" & Cota == "1800") |
+    (Parcela == "Camarate" & Cota == "1900") |
+    (Parcela == "Canar" & Cota == "1900")) &
+    Ecosistema_reclasificado == "Robledal"
+  ) %>%
+  mutate(
+    Cota_num = as.numeric(Cota),
+    Etiqueta_Altitud = paste(Parcela, "-", Cota, "m.s.n.m.")
+  ) %>%
+  arrange(Cota_num) %>%
+  mutate(
+    Etiqueta_Altitud = factor(Etiqueta_Altitud, levels = unique(Etiqueta_Altitud))
+  )
+
+p_germ_altitudinal <- crear_boxplot_altitudinal_anio(datos_altitudinal_germ, "Porcentaje_Max", "Germinación acumulada", "Germinación acumulada (%)")
+if(!is.null(p_germ_altitudinal)) print(p_germ_altitudinal)
+
+# ANÁLISIS DE SUPERVIVENCIA
+
+# Preparar datos para gráficas de supervivencia INCLUYENDO Microestacion
+datos_supervivencia <- berberis_final %>%
+  filter(Año %in% c(2024, 2025)) %>%
+  filter(!is.na(Supervivencia) & Supervivencia != "") %>%
+  group_by(Parcela, Cota, Año, Tratamiento, Ecosistema, Orientacion, Microestacion) %>%
+  summarise(
+    Porcentaje_Supervivencia = first(Supervivencia),
+    .groups = 'drop'
+  ) %>%
+  mutate(Porcentaje_Supervivencia = as.numeric(Porcentaje_Supervivencia))
+
+# RECLASIFICAR ECOSISTEMAS
+datos_supervivencia <- datos_supervivencia %>%
+  mutate(Ecosistema_reclasificado = case_when(
+    Ecosistema == "Encinar" & grepl("Finana", Parcela, ignore.case = TRUE) ~ "Encinar seco",
+    Ecosistema == "Encinar" & grepl("Camarate", Parcela, ignore.case = TRUE) ~ "Encinar húmedo",
+    Ecosistema == "Pinar_ha" ~ "P_halepensis",
+    Ecosistema == "Pinar_sy" ~ "P_sylvestris",
+    Ecosistema %in% c("Enebral", "Piornal") ~ "Matorral A.M.",
+    Ecosistema == "Serbal-Aceral" ~ "Robledal",
+    TRUE ~ Ecosistema
+  )) %>%
+  # Ordenar los ecosistemas según el orden especificado
+  mutate(Ecosistema_reclasificado = factor(Ecosistema_reclasificado,
+                                          levels = c("P_halepensis", "Encinar seco", "Encinar húmedo", 
+                                                     "Robledal", "P_sylvestris", "Matorral A.M.")))
+
+# 5. GRÁFICA POR ECOSISTEMA - SUPERVIVENCIA (SEPARADO POR AÑOS)
+#cat("\n=== SUPERVIVENCIA FINAL POR ECOSISTEMA (BOXPLOTS) - SEPARADO POR AÑOS ===\n")
+p_sup_ecosistema <- crear_boxplot_ecosistema_anio(datos_supervivencia, "Porcentaje_Supervivencia", "Supervivencia final", "Supervivencia final (%)")
+print(p_sup_ecosistema)
+
+# 6. GRÁFICA ROBLEDAL POR ORIENTACIÓN - SUPERVIVENCIA (SEPARADO POR AÑOS)
+#cat("\n=== SUPERVIVENCIA FINAL - ROBLEDAL POR ORIENTACIÓN - SEPARADO POR AÑOS ===\n")
+datos_robledal_sup <- datos_supervivencia %>%
+  filter(Ecosistema_reclasificado == "Robledal") %>%
+  mutate(
+    Exposicion = case_when(
+      Parcela %in% c("Camarate", "Hortichuela", "Hortichuela_alta") ~ "Robledal Norte",
+      Parcela == "Canar" ~ "Robledal Sur",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  filter(!is.na(Exposicion))
+
+p_sup_robledal <- crear_boxplot_orientacion_anio(datos_robledal_sup, "Porcentaje_Supervivencia", "Supervivencia final", "Supervivencia final (%)", "Robledal")
+if(!is.null(p_sup_robledal)) print(p_sup_robledal)
+
+# 7. GRÁFICA MATORRAL A.M. POR ORIENTACIÓN - SUPERVIVENCIA (SEPARADO POR AÑOS)
+#cat("\n=== SUPERVIVENCIA FINAL - MATORRAL A.M. POR ORIENTACIÓN - SEPARADO POR AÑOS ===\n")
+datos_matorral_sup <- datos_supervivencia %>%
+  filter(Ecosistema_reclasificado == "Matorral A.M.") %>%
+  mutate(
+    Exposicion = case_when(
+      Parcela %in% c("SanJuan", "Camarate") ~ "Matorral A.M. Norte",
+      Parcela == "Canar" ~ "Matorral A.M. Sur",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  filter(!is.na(Exposicion))
+
+p_sup_matorral <- crear_boxplot_orientacion_anio(datos_matorral_sup, "Porcentaje_Supervivencia", "Supervivencia final", "Supervivencia final (%)", "Matorral A.M.")
+if(!is.null(p_sup_matorral)) print(p_sup_matorral)
+
+# 8. GRÁFICA ALTITUDINAL ROBLEDAL - SUPERVIVENCIA (SEPARADO POR AÑOS)
+#cat("\n=== SUPERVIVENCIA FINAL - ROBLEDAL ALTITUDINAL - SEPARADO POR AÑOS ===\n")
+datos_altitudinal_sup <- datos_supervivencia %>%
+  filter(
+    ((Parcela == "Hortichuela" & Cota == "1300") |
+    (Parcela == "Hortichuela_alta" & Cota == "1500") |
+    (Parcela == "Camarate" & Cota == "1700") |
+    (Parcela == "Canar" & Cota == "1700") |
+    (Parcela == "Canar" & Cota == "1800") |
+    (Parcela == "Camarate" & Cota == "1900") |
+    (Parcela == "Canar" & Cota == "1900")) &
+    Ecosistema_reclasificado == "Robledal"
+  ) %>%
+  mutate(
+    Cota_num = as.numeric(Cota),
+    Etiqueta_Altitud = paste(Parcela, "-", Cota, "m.s.n.m.")
+  ) %>%
+  arrange(Cota_num) %>%
+  mutate(
+    Etiqueta_Altitud = factor(Etiqueta_Altitud, levels = unique(Etiqueta_Altitud))
+  )
+
+p_sup_altitudinal <- crear_boxplot_altitudinal_anio(datos_altitudinal_sup, "Porcentaje_Supervivencia", "Supervivencia final", "Supervivencia final (%)")
+if(!is.null(p_sup_altitudinal)) print(p_sup_altitudinal)
+
+
+
+```
+
+## ANEXO 1: Germinación acumulada de semillas de Berberis hipanica
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+# Cargar las librerías necesarias
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+library(tidyr)
+
+# RECATEGORIZACIÓN DE ECOSISTEMAS
+berberis_final <- berberis_final %>%
+  mutate(Ecosistema = case_when(
+    Ecosistema == "Encinar" & Parcela == "Finana" ~ "Encinar seco",
+    Ecosistema == "Encinar" & Parcela == "Camarate" ~ "Encinar húmedo",
+    Ecosistema == "Serbal-Aceral" ~ "Robledal",
+    Ecosistema %in% c("Piornal", "Enebral") ~ "Matorral A.M.",
+    Ecosistema == "Pinar_ha" ~ "P_halepensis",
+    Ecosistema == "Pinar_sy" ~ "P_sylvestris",
+    TRUE ~ Ecosistema
+  ))
+
+# Ver la estructura de los datos
+# str(berberis)
+# head(berberis)
+
+# Preparar los datos
+# Primero, extraer el año de la columna Fecha
+berberis <- berberis_final %>%
+  mutate(Fecha = as.character(Fecha),
+         Año = year(ymd(Fecha)))
+
+# Filtrar solo los años 2024 y 2025
+berberis_filtrado <- berberis %>%
+  filter(Año %in% c(2024, 2025))
+
+# Calcular solo el porcentaje máximo por Parcela, Cota, Año y Tratamiento
+datos_graficas <- berberis_filtrado %>%
+  group_by(Parcela, Cota, Año, Tratamiento, Ecosistema, Orientacion) %>%
+  summarise(
+    Porcentaje_Max = max(Porcentaje, na.rm = TRUE),
+    .groups = 'drop'
+  )
+
+# Ver los datos resultantes
+#head(datos_graficas)
+
+# Función para crear gráficas por combinación de Parcela y Cota
+crear_graficas <- function(datos) {
+  # Obtener todas las combinaciones únicas de Parcela y Cota
+  combinaciones <- datos %>%
+    distinct(Parcela, Cota, Ecosistema, Orientacion)
+  
+  # Crear una gráfica para cada combinación
+  for (i in 1:nrow(combinaciones)) {
+    parcela_actual <- combinaciones$Parcela[i]
+    cota_actual <- combinaciones$Cota[i]
+    ecosistema_actual <- combinaciones$Ecosistema[i]
+    orientacion_actual <- combinaciones$Orientacion[i]
+    
+    # Filtrar datos para esta combinación
+    datos_filtrados <- datos %>%
+      filter(Parcela == parcela_actual, Cota == cota_actual)
+    
+    # Crear todas las combinaciones posibles para asegurar las 4 barras
+    combinaciones_completas <- expand.grid(
+      Año = c(2024, 2025),
+      Tratamiento = c("Control", "Refugio"),
+      Parcela = parcela_actual,
+      Cota = cota_actual,
+      Ecosistema = ecosistema_actual,
+      Orientacion = orientacion_actual
+    )
+    
+    # Unir con los datos reales, rellenando con 0 los valores faltantes
+    # Y aplicando una altura mínima para los valores 0
+    datos_completos <- combinaciones_completas %>%
+      left_join(datos_filtrados, by = c("Año", "Tratamiento", "Parcela", "Cota", "Ecosistema", "Orientacion")) %>%
+      mutate(Porcentaje_Max = ifelse(is.na(Porcentaje_Max), 0, Porcentaje_Max)) %>%
+      # Aplicar altura mínima del 1% para valores 0
+      mutate(Porcentaje_Max_ajustado = ifelse(Porcentaje_Max == 0, 0.05, Porcentaje_Max)) %>%
+      # Crear variable de agrupación para el eje X
+      mutate(Grupo = interaction(Año, Tratamiento))
+    
+    # Definir el orden deseado para las barras
+    datos_completos$Grupo <- factor(datos_completos$Grupo, 
+                                    levels = c("2024.Control", "2024.Refugio", "2025.Control", "2025.Refugio"))
+    
+    # Crear la gráfica con la altura ajustada para los 0
+    p <- ggplot(datos_completos, aes(x = Grupo, y = Porcentaje_Max_ajustado, 
+                                     fill = Tratamiento)) +
+      geom_bar(stat = "identity", width = 0.7,
+               color = "black", linewidth = 0.5) +
+      labs(title = paste("Germinación acumulada (%):", parcela_actual, "- Cota:", cota_actual, "m.s.n.m"),
+           subtitle = paste("Ecosistema:", ecosistema_actual, "- Orientación:", orientacion_actual),
+           x = "Año y Tratamiento",
+           y = "Germinación acumulada (%)") +
+      theme_minimal() +
+      scale_fill_manual(values = c("Control" = "#0077b6", "Refugio" = "#a7c957")) +
+      theme(
+        legend.position = "none",  # Eliminar la leyenda
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 12),
+        plot.subtitle = element_text(hjust = 0.5, size = 10),
+        axis.title = element_text(face = "bold", size = 10),
+        axis.text = element_text(size = 9),
+        axis.text.x = element_text(angle = 0, hjust = 0.5, vjust = 0.5),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        panel.grid.major.y = element_line(color = "gray80", linewidth = 0.2),
+        panel.grid.minor.y = element_blank()
+      ) +
+      # Eje Y fijo de 0 a 25 para todas las gráficas
+      scale_y_continuous(limits = c(0, 25),
+                         breaks = seq(0, 25, by = 5)) +
+      # Personalizar las etiquetas del eje X para mostrar año y tratamiento de forma clara
+      scale_x_discrete(labels = function(x) {
+        case_when(
+          x == "2024.Control" ~ "2024\nControl",
+          x == "2024.Refugio" ~ "2024\nRefugio",
+          x == "2025.Control" ~ "2025\nControl", 
+          x == "2025.Refugio" ~ "2025\nRefugio"
+        )
+      })
+    
+    # Mostrar la gráfica
+    print(p)
+  }
+}
+
+# Ejecutar la función para crear todas las gráficas
+crear_graficas(datos_graficas)
+```
+
+## ANEXO 2: Supervivencia final de Berberis hipanica
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+# Cargar las librerías necesarias
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+library(tidyr)
+
+# RECATEGORIZACIÓN DE ECOSISTEMAS
+berberis_final <- berberis_final %>%
+  mutate(Ecosistema = case_when(
+    Ecosistema == "Encinar" & Parcela == "Finana" ~ "Encinar seco",
+    Ecosistema == "Encinar" & Parcela == "Camarate" ~ "Encinar húmedo",
+    Ecosistema == "Serbal-Aceral" ~ "Robledal",
+    Ecosistema %in% c("Piornal", "Enebral") ~ "Matorral A.M.",
+    Ecosistema == "Pinar_ha" ~ "P_halepensis",
+    Ecosistema == "Pinar_sy" ~ "P_sylvestris",
+    TRUE ~ Ecosistema
+  ))
+
+# Ver la estructura de los datos
+#str(berberis)
+#head(berberis)
+
+# Preparar los datos
+# Primero, extraer el año de la columna Fecha
+berberis <- berberis_final %>%
+  mutate(Fecha = as.character(Fecha),
+         Año = year(ymd(Fecha)))
+
+# Filtrar solo los años 2024 y 2025 y eliminar filas vacías en Supervivencia
+berberis_supervivencia <- berberis %>%
+  filter(Año %in% c(2024, 2025)) %>%
+  filter(!is.na(Supervivencia) & Supervivencia != "")  # Eliminar celdas vacías pero mantener los 0
+
+# Preparar datos para gráficas de supervivencia
+datos_supervivencia <- berberis_supervivencia %>%
+  group_by(Parcela, Cota, Año, Tratamiento, Ecosistema, Orientacion) %>%
+  summarise(
+    Porcentaje_Supervivencia = first(Supervivencia),  # Tomar el primer valor ya que solo hay uno por grupo
+    .groups = 'drop'
+  ) %>%
+  mutate(Porcentaje_Supervivencia = as.numeric(Porcentaje_Supervivencia))  # Asegurar que es numérico
+
+# Función para crear gráficas de supervivencia por combinación de Parcela y Cota
+crear_graficas_supervivencia <- function(datos) {
+  # Obtener todas las combinaciones únicas de Parcela y Cota
+  combinaciones <- datos %>%
+    distinct(Parcela, Cota, Ecosistema, Orientacion)
+  
+  # Crear una gráfica para cada combinación
+  for (i in 1:nrow(combinaciones)) {
+    parcela_actual <- combinaciones$Parcela[i]
+    cota_actual <- combinaciones$Cota[i]
+    ecosistema_actual <- combinaciones$Ecosistema[i]
+    orientacion_actual <- combinaciones$Orientacion[i]
+    
+    # Filtrar datos para esta combinación
+    datos_filtrados <- datos %>%
+      filter(Parcela == parcela_actual, Cota == cota_actual)
+    
+    # Crear todas las combinaciones posibles para asegurar las 4 barras
+    combinaciones_completas <- expand.grid(
+      Año = c(2024, 2025),
+      Tratamiento = c("Control", "Refugio"),
+      Parcela = parcela_actual,
+      Cota = cota_actual,
+      Ecosistema = ecosistema_actual,
+      Orientacion = orientacion_actual
+    )
+    
+    # Unir con los datos reales, rellenando con 0 los valores faltantes
+    # Y aplicando una altura mínima para los valores 0
+    datos_completos <- combinaciones_completas %>%
+      left_join(datos_filtrados, by = c("Año", "Tratamiento", "Parcela", "Cota", "Ecosistema", "Orientacion")) %>%
+      mutate(Porcentaje_Supervivencia = ifelse(is.na(Porcentaje_Supervivencia), 0, Porcentaje_Supervivencia)) %>%
+      # Aplicar altura mínima del 1% para valores 0
+      mutate(Porcentaje_Supervivencia_ajustado = ifelse(Porcentaje_Supervivencia == 0, 0.08, Porcentaje_Supervivencia)) %>%
+      # Crear variable de agrupación para el eje X
+      mutate(Grupo = interaction(Año, Tratamiento))
+    
+    # Definir el orden deseado para las barras
+    datos_completos$Grupo <- factor(datos_completos$Grupo, 
+                                    levels = c("2024.Control", "2024.Refugio", "2025.Control", "2025.Refugio"))
+    
+    # Crear la gráfica de supervivencia
+    p <- ggplot(datos_completos, aes(x = Grupo, y = Porcentaje_Supervivencia_ajustado, 
+                                     fill = Tratamiento)) +
+      geom_bar(stat = "identity", width = 0.7,
+               color = "black", linewidth = 0.5) +
+      labs(title = paste("Supervivencia final (%):", parcela_actual, "- Cota:", cota_actual, "m.s.n.m"),
+           subtitle = paste("Ecosistema:", ecosistema_actual, "- Orientación:", orientacion_actual),
+           x = "Año y Tratamiento",
+           y = "Supervivencia final (%)") +
+      theme_minimal() +
+      scale_fill_manual(values = c("Control" = "#0077b6", "Refugio" = "#a7c957")) +
+      theme(
+        legend.position = "none",  # Eliminar la leyenda
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 12),
+        plot.subtitle = element_text(hjust = 0.5, size = 10),
+        axis.title = element_text(face = "bold", size = 10),
+        axis.text = element_text(size = 9),
+        axis.text.x = element_text(angle = 0, hjust = 0.5, vjust = 0.5),
+        # Eliminar líneas verticales del fondo, mantener solo horizontales
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        panel.grid.major.y = element_line(color = "gray80", linewidth = 0.2),
+        panel.grid.minor.y = element_blank()
+      ) +
+      # Mantener el eje Y como estaba (0-100) pero con altura mínima para los 0
+      scale_y_continuous(limits = c(0, 100),
+                         breaks = seq(0, 100, by = 20)) +
+      # Personalizar las etiquetas del eje X para mostrar año y tratamiento de forma clara
+      scale_x_discrete(labels = function(x) {
+        case_when(
+          x == "2024.Control" ~ "2024\nControl",
+          x == "2024.Refugio" ~ "2024\nRefugio",
+          x == "2025.Control" ~ "2025\nControl", 
+          x == "2025.Refugio" ~ "2025\nRefugio"
+        )
+      })
+    
+    # Mostrar la gráfica
+    print(p)
+  }
+}
+
+# Ejecutar la función para crear todas las gráficas de supervivencia
+crear_graficas_supervivencia(datos_supervivencia)
+```
+
