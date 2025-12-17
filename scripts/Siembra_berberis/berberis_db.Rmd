@@ -1,6 +1,5 @@
 ---
 title: "Task B.1) Germinación de semillas de Berberis Hipanica"
-output: word_document
 ---
 
 # Introducción:
