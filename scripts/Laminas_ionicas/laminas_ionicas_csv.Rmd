@@ -1,0 +1,593 @@
+---
+title: "Task E.2) Disponibilidad de nutrientes del suelo"
+author: ''
+date: ''
+output:
+  word_document: default
+  html_document: default
+---
+
+# Introducción:
+
+La disponibilidad de nutrientes en el suelo se estimará mediante membranas de intercambio iónico (MII; Subler et al., 1995; Duran et al., 2013). Esta técnica considera las tasas de difusión de iones en el suelo, lo que permite detectar la accesibilidad de los nutrientes a las raíces de las plantas y los microorganismos durante un período determinado.
+
+# Hipótesis:
+
+Nuestra hipótesis es que los refugios biogénicos favorecen una mayor y más prolongada actividad de microorganismos y artrópodos en el suelo, lo que permite una descomposición más rápida de la materia orgánica, mediante procesos de respiración, y por lo tanto un reciclaje más eficaz de nutrientes (mayor homeostasis) en la isla biogénica creada por las arboledas de enebro, roble y pino que en los espacios abiertos que las rodean.
+
+# Metodología original:
+
+En cada una de las 86 microestaciones, se enterrarán aleatoriamente en el suelo tres MII de cationes y tres de aniones, y se incubarán en el campo durante 30 días (de abril a mayo de 2023). Después de su extracción, los IEM (un total de 258 IEM catiónicos y 258 IEM aniónicos) se llevarán al laboratorio, se secarán a temperatura ambiente y se analizarán para estimar los cationes y aniones de los IEM.
+
+# Metodología real:
+
+Se realizó un muestreo con láminas iónicas para determinar la disponibilidad en el medio de amonio, nitrato y fosfato presentes en los suelos de nuestras zonas de estudio. 
+Para llevar a cabo este muestreo, se usaron etiquetas de pvc, con una resina catiónica y aniónica en cada cara, respectivamente. Estas resinas, tienen una superficie aproximada de 4x2 cm. Las etiquetas, se enterraron en los primeros 5 cm del suelo, lo que es llamado como “suelo mineral”. Se enterraron 3 etiquetas por cada una de las microestaciones meteorológicas que componen las parcelas de estudio. En total, se instalaron 231 etiquetas, pero debido a la acción de la fauna, algunas desaparecieron, y finalmente se recolectaron 224 etiquetas.
+Estas etiquetas se instalaron en campo durante los meses de abril y mayo de 2024, y se recogieron en los meses de junio y julio de ese mismo año. Tras su recolección, se empaquetaron y se enviaron para su posterior análisis.
+
+# Análisis de datos:
+
+Se realizó un análisis exploratorio mediante diagramas de caja y bigotes para comparar la concentración de cada ión (NH4, NO3 y PO4) entre tratamientos (Control vs. Refugio), estratificado por ecosistema, orientación y cota altitudinal. Los diagramas muestran la mediana (línea central), el rango intercuartílico (caja), la dispersión total (bigotes) y valores atípicos (puntos individuales), complementados con la media aritmética (punto rojo).
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+
+# Cargar librerías necesarias
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(ggpattern)  # Para los patrones en las gráficas
+
+# Establecer directorio de trabajo
+setwd("C:/Users/iecolab/OneDrive - UNIVERSIDAD DE GRANADA/Refugios_biogenicos/Datos/Laminas_ionicas")
+
+# Leer los datos
+datos <- read.csv("Laminas_ionicas.csv", sep = ";", header = TRUE, stringsAsFactors = FALSE)
+
+# 1. RECATEGORIZACIÓN DE ECOSISTEMAS Y FILTRO
+datos <- datos %>%
+  # Recategorización de ecosistemas
+  mutate(Ecosistema = case_when(
+    Ecosistema == "Encinar" & Parcela == "Finana" ~ "Encinar seco",
+    Ecosistema == "Encinar" & Parcela == "Camarate" ~ "Encinar húmedo",
+    Ecosistema == "Serbal-Aceral" ~ "Robledal",
+    Ecosistema %in% c("Piornal", "Enebral") ~ "Matorral A.M.",
+    Ecosistema == "Pinar_ha" ~ "P_halepensis",
+    Ecosistema == "Pinar_sy" ~ "P_sylvestris",
+    TRUE ~ Ecosistema
+  )) %>%
+  # FILTRAR: Eliminar las microestaciones específicas que no quieres
+  filter(!(Parcela == "Canar" & Cota == 1900 & Microestacion %in% c(60, 63, 57)))
+
+# 2. PREPARAR DATOS EN FORMATO LARGO Y CALCULAR MEDIA POR MICROESTACIÓN
+preparar_datos_iones <- function() {
+  datos_largos <- datos %>%
+    select(Parcela, Cota, Tratamiento, Ecosistema, Orientacion, Microestacion, NH4, NO3, PO4) %>%
+    pivot_longer(
+      cols = c(NH4, NO3, PO4),
+      names_to = "Ion",
+      values_to = "Concentracion"
+    ) %>%
+    # Calcular media por microestación (agrupar las réplicas de láminas iónicas)
+    group_by(Parcela, Cota, Tratamiento, Ecosistema, Orientacion, Microestacion, Ion) %>%
+    summarise(
+      Concentracion_media = mean(Concentracion, na.rm = TRUE),
+      .groups = 'drop'
+    ) %>%
+    mutate(
+      Ion = factor(Ion, levels = c("NH4", "NO3", "PO4")),
+      # Convertir Cota a factor
+      Cota = as.factor(Cota)
+    ) %>%
+    # Filtrar solo valores no NA
+    filter(!is.na(Concentracion_media))
+  
+  return(datos_largos)
+}
+
+# Preparar datos
+datos_iones <- preparar_datos_iones()
+
+# Función para formatear nombres de iones con subíndices
+formatear_ion <- function(ion) {
+  case_when(
+    ion == "NH4" ~ expression(paste("NH"[4])),
+    ion == "NO3" ~ expression(paste("NO"[3])),
+    ion == "PO4" ~ expression(paste("PO"[4])),
+    TRUE ~ ion
+  )
+}
+
+# Función para formatear etiquetas de eje Y con subíndices
+formatear_eje_y <- function(ion) {
+  case_when(
+    ion == "NH4" ~ expression(paste("NH"[4], " (µg cm"^{-2}, " day"^{-1}, ")")),
+    ion == "NO3" ~ expression(paste("NO"[3], " (µg cm"^{-2}, " day"^{-1}, ")")),
+    ion == "PO4" ~ expression(paste("PO"[4], " (µg cm"^{-2}, " day"^{-1}, ")"))
+  )
+}
+
+# 3. FUNCIÓN PARA CREAR GRÁFICOS POR ECOSISTEMA (MODIFICADA A CAJAS Y BIGOTES)
+crear_grafico_ecosistema_iones <- function(df, ion_seleccionado) {
+  
+  # Filtrar por ion
+  datos_filtrados <- df %>% filter(Ion == ion_seleccionado)
+  
+  # Orden específico para los ecosistemas
+  orden_ecosistemas <- c("P_halepensis", "Encinar seco", "Encinar húmedo", "Robledal", "P_sylvestris", "Matorral A.M.")
+  
+  # Aplicar el orden
+  datos_filtrados <- datos_filtrados %>%
+    mutate(Ecosistema = factor(Ecosistema, levels = orden_ecosistemas))
+  
+  # Calcular número de microestaciones por grupo para el texto
+  datos_n <- datos_filtrados %>%
+    group_by(Ecosistema, Tratamiento) %>%
+    summarise(n = n(), .groups = 'drop')
+  
+  # Calcular medias para el punto rojo
+  datos_medias <- datos_filtrados %>%
+    group_by(Ecosistema, Tratamiento) %>%
+    summarise(
+      Media_grupo = mean(Concentracion_media, na.rm = TRUE),
+      .groups = 'drop'
+    )
+  
+  # Obtener el valor máximo para posicionar las etiquetas n
+  y_max <- max(datos_filtrados$Concentracion_media, na.rm = TRUE)
+  y_pos_n <- y_max * 1.05
+  
+  # Crear gráfico de caja y bigotes
+  p <- ggplot(datos_filtrados, aes(x = Ecosistema, y = Concentracion_media, fill = Tratamiento)) +
+    geom_boxplot(
+      position = position_dodge(width = 0.8),
+      width = 0.7,
+      outlier.shape = NA,
+      outlier.size = 1.5,
+      outlier.fill = "white",
+      outlier.color = "black"
+    ) +
+    geom_point(
+      color = "black",
+      position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.8),
+      size = 1.5,
+      alpha = 0.6,
+      show.legend = FALSE
+    ) +
+    geom_point(
+      data = datos_medias,
+      aes(y = Media_grupo, group = Tratamiento),
+      shape = 23,
+      size = 2,
+      fill = "red",
+      color = "darkred",
+      position = position_dodge(width = 0.8),
+      show.legend = FALSE
+    ) +
+    geom_text(data = datos_n, 
+              aes(label = paste0("n=", n), y = y_pos_n),
+              position = position_dodge(width = 0.8),
+              size = 2.5, vjust = 0, color = "black", fontface = "bold") +
+    labs(
+      title = switch(ion_seleccionado,
+                    "NH4" = expression(paste("Concentración de NH"[4], " por Ecosistema")),
+                    "NO3" = expression(paste("Concentración de NO"[3], " por Ecosistema")),
+                    "PO4" = expression(paste("Concentración de PO"[4], " por Ecosistema"))),
+      x = "",
+      y = switch(ion_seleccionado,
+                "NH4" = expression(paste("NH"[4], " (µg cm"^{-2}, " day"^{-1}, ")")),
+                "NO3" = expression(paste("NO"[3], " (µg cm"^{-2}, " day"^{-1}, ")")),
+                "PO4" = expression(paste("PO"[4], " (µg cm"^{-2}, " day"^{-1}, ")"))),
+      fill = "Tratamiento"
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "right",
+      axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 7),
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 8),
+      legend.text = element_text(size = 7),
+      legend.title = element_text(size = 7),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      panel.grid.major.y = element_line(color = "grey80", linewidth = 0.2),
+      panel.grid.minor.y = element_blank()
+    ) +
+    scale_fill_manual(
+      values = c("Control" = "#0077b6", "Refugio" = "#a7c957"),
+      name = "Tratamiento"
+    ) +
+    coord_cartesian(ylim = c(0, y_max * 1.1))
+  
+  return(p)
+}
+
+# 4. FUNCIÓN PARA GRÁFICAS POR ORIENTACIÓN (MODIFICADA A CAJAS Y BIGOTES)
+crear_grafico_orientacion_iones <- function(df, ion_seleccionado, ecosistema_seleccionado) {
+  
+  # Filtrar por ion y ecosistema
+  datos_filtrados <- df %>%
+    filter(Ion == ion_seleccionado & 
+             Ecosistema == ecosistema_seleccionado & 
+             Orientacion %in% c("Norte", "Sur"))
+  
+  if (nrow(datos_filtrados) == 0) {
+    return(NULL)
+  }
+  
+  # Calcular número de microestaciones por grupo para el texto
+  datos_n <- datos_filtrados %>%
+    group_by(Orientacion, Tratamiento) %>%
+    summarise(n = n(), .groups = 'drop')
+  
+  # Calcular medias para el punto rojo
+  datos_medias <- datos_filtrados %>%
+    group_by(Orientacion, Tratamiento) %>%
+    summarise(
+      Media_grupo = mean(Concentracion_media, na.rm = TRUE),
+      .groups = 'drop'
+    )
+  
+  # Obtener el valor máximo para posicionar las etiquetas n
+  y_max <- max(datos_filtrados$Concentracion_media, na.rm = TRUE)
+  y_pos_n <- y_max * 1.05
+  
+  # Crear gráfico de caja y bigotes
+  p <- ggplot(datos_filtrados, aes(x = Orientacion, y = Concentracion_media, fill = Tratamiento)) +
+    geom_boxplot(
+      position = position_dodge(width = 0.8),
+      width = 0.7,
+      outlier.shape = NA,
+      outlier.size = 1.5,
+      outlier.fill = "white",
+      outlier.color = "black"
+    ) +
+    geom_point(
+      color = "black",
+      position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.8),
+      size = 1.5,
+      alpha = 0.6,
+      show.legend = FALSE
+    ) +
+    geom_point(
+      data = datos_medias,
+      aes(y = Media_grupo, group = Tratamiento),
+      shape = 23,
+      size = 2,
+      fill = "red",
+      color = "darkred",
+      position = position_dodge(width = 0.8),
+      show.legend = FALSE
+    ) +
+    geom_text(data = datos_n, 
+              aes(label = paste0("n=", n), y = y_pos_n),
+              position = position_dodge(width = 0.8),
+              size = 2.5, vjust = 0, color = "black", fontface = "bold") +
+    labs(
+      title = switch(ion_seleccionado,
+                    "NH4" = bquote("Concentración de NH"[4] ~ "según exposición -" ~ .(ecosistema_seleccionado)),
+                    "NO3" = bquote("Concentración de NO"[3] ~ "según exposición -" ~ .(ecosistema_seleccionado)),
+                    "PO4" = bquote("Concentración de PO"[4] ~ "según exposición -" ~ .(ecosistema_seleccionado))),
+      x = "Exposición",
+      y = switch(ion_seleccionado,
+                "NH4" = expression(paste("NH"[4], " (µg cm"^{-2}, " day"^{-1}, ")")),
+                "NO3" = expression(paste("NO"[3], " (µg cm"^{-2}, " day"^{-1}, ")")),
+                "PO4" = expression(paste("PO"[4], " (µg cm"^{-2}, " day"^{-1}, ")"))),
+      fill = "Tratamiento"
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "right",
+      axis.text.x = element_text(angle = 0, hjust = 0.5, vjust = 1, size = 7),
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 8),
+      legend.text = element_text(size = 7),
+      legend.title = element_text(size = 7),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      panel.grid.major.y = element_line(color = "grey80", linewidth = 0.2),
+      panel.grid.minor.y = element_blank()
+    ) +
+    scale_fill_manual(
+      values = c("Control" = "#0077b6", "Refugio" = "#a7c957"),
+      name = "Tratamiento"
+    ) +
+    coord_cartesian(ylim = c(0, y_max * 1.1))
+  
+  return(p)
+}
+
+# 5. FUNCIÓN PARA GRÁFICAS DE ROBLEDAL POR PARCELA Y COTA (MODIFICADA A CAJAS Y BIGOTES)
+crear_grafico_robledal_parcelas_iones <- function(df, ion_seleccionado) {
+  
+  # Filtrar solo datos de Robledal
+  datos_robledal <- df %>%
+    filter(Ecosistema == "Robledal" & Ion == ion_seleccionado)
+  
+  if (nrow(datos_robledal) == 0) {
+    return(NULL)
+  }
+  
+  # Crear variable combinada para el eje X y ordenar
+  datos_robledal <- datos_robledal %>%
+    mutate(Parcela_Cota = paste(Parcela, "-", Cota, "m.s.n.m.")) %>%
+    arrange(Cota) %>%
+    mutate(Parcela_Cota = factor(Parcela_Cota, levels = unique(Parcela_Cota)))
+  
+  # Calcular número de microestaciones por grupo para el texto
+  datos_n <- datos_robledal %>%
+    group_by(Parcela_Cota, Tratamiento) %>%
+    summarise(n = n(), .groups = 'drop')
+  
+  # Calcular medias para el punto rojo
+  datos_medias <- datos_robledal %>%
+    group_by(Parcela_Cota, Tratamiento, Orientacion) %>%
+    summarise(
+      Media_grupo = mean(Concentracion_media, na.rm = TRUE),
+      .groups = 'drop'
+    )
+  
+  # Obtener el valor máximo para posicionar las etiquetas n
+  y_max <- max(datos_robledal$Concentracion_media, na.rm = TRUE)
+  y_pos_n <- y_max * 1.05
+  
+  # Crear gráfico de caja y bigotes con patrones
+  p <- ggplot(datos_robledal, aes(x = Parcela_Cota, y = Concentracion_media, 
+                                  fill = Tratamiento)) +
+    geom_boxplot_pattern(
+      aes(pattern = Orientacion),
+      position = position_dodge(width = 0.8),
+      width = 0.7,
+      outlier.shape = NA,
+      outlier.size = 1.5,
+      outlier.fill = "white",
+      outlier.color = "black",
+      pattern_fill = "black",
+      pattern_angle = 45,
+      pattern_density = 0.1,
+      pattern_spacing = 0.025,
+      pattern_key_scale_factor = 0.6
+    ) +
+    geom_point(
+      color = "black",
+      position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.8),
+      size = 1.5,
+      alpha = 0.6,
+      show.legend = FALSE
+    ) +
+    geom_point(
+      data = datos_medias,
+      aes(y = Media_grupo, group = interaction(Tratamiento, Orientacion)),
+      shape = 23,
+      size = 1.5,
+      fill = "red",
+      color = "darkred",
+      position = position_dodge(width = 0.8),
+      show.legend = FALSE
+    ) +
+    geom_text(data = datos_n, 
+              aes(label = paste0("n=", n), y = y_pos_n),
+              position = position_dodge(width = 0.8),
+              size = 2, vjust = 0, color = "black", fontface = "bold") +
+    labs(
+      title = switch(ion_seleccionado,
+                    "NH4" = expression(paste("Concentración de NH"[4], " - Robledal")),
+                    "NO3" = expression(paste("Concentración de NO"[3], " - Robledal")),
+                    "PO4" = expression(paste("Concentración de PO"[4], " - Robledal"))),
+      x = "",
+      y = switch(ion_seleccionado,
+                "NH4" = expression(paste("NH"[4], " (µg cm"^{-2}, " day"^{-1}, ")")),
+                "NO3" = expression(paste("NO"[3], " (µg cm"^{-2}, " day"^{-1}, ")")),
+                "PO4" = expression(paste("PO"[4], " (µg cm"^{-2}, " day"^{-1}, ")"))),
+      fill = "Tratamiento",
+      pattern = "Orientación"
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "right",
+      axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 7),
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 8),
+      legend.text = element_text(size = 7),
+      legend.title = element_text(size = 7),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      panel.grid.major.y = element_line(color = "grey80", linewidth = 0.2),
+      panel.grid.minor.y = element_blank()
+    ) +
+    scale_fill_manual(
+      values = c("Control" = "#0077b6", "Refugio" = "#a7c957"),
+      name = "Tratamiento",
+      guide = guide_legend(override.aes = list(pattern = "none"))
+    ) +
+    scale_pattern_manual(
+      values = c("Norte" = "none", "Sur" = "stripe"),
+      name = "",
+      guide = guide_legend(override.aes = list(fill = "white", 
+                                               color = "black",
+                                               pattern_fill = "black"))
+    ) +
+    coord_cartesian(ylim = c(0, y_max * 1.1))
+  
+  return(p)
+}
+
+# 6. GENERAR TODAS LAS GRÁFICAS
+
+for(ion in c("NH4", "NO3", "PO4")) {
+  p <- crear_grafico_ecosistema_iones(datos_iones, ion)
+  if(!is.null(p)) print(p)
+}
+
+for(ion in c("NH4", "NO3", "PO4")) {
+  for(ecosistema in c("Robledal", "Matorral A.M.")) {
+    p <- crear_grafico_orientacion_iones(datos_iones, ion, ecosistema)
+    if(!is.null(p)) print(p)
+  }
+}
+
+for(ion in c("NH4", "NO3", "PO4")) {
+  p <- crear_grafico_robledal_parcelas_iones(datos_iones, ion)
+  if(!is.null(p)) print(p)
+}
+
+```
+
+## ANEXO 1: Gráficos de concentración de NH4, NO3 y PO4, según la parcela y la cota
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+
+# Cargar librerías necesarias
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+# Establecer directorio de trabajo
+setwd("C:/Users/iecolab/OneDrive - UNIVERSIDAD DE GRANADA/Refugios_biogenicos/Datos/Laminas_ionicas")
+
+# Leer los datos
+datos <- read.csv("Laminas_ionicas.csv", sep = ";", header = TRUE, stringsAsFactors = FALSE)
+
+# RECATEGORIZACIÓN DE ECOSISTEMAS
+datos <- datos %>%
+  mutate(Ecosistema = case_when(
+    Ecosistema == "Encinar" & Parcela == "Finana" ~ "Encinar húmedo",
+    Ecosistema == "Encinar" & Parcela == "Camarate" ~ "Encinar seco",
+    Ecosistema == "Serbal-Aceral" ~ "Robledal",
+    Ecosistema %in% c("Piornal", "Enebral") ~ "Matorral A.M.",
+    Ecosistema == "Pinar_ha" ~ "P_halepensis",
+    Ecosistema == "Pinar_sy" ~ "P_sylvestris",
+    TRUE ~ Ecosistema
+  ))
+
+# Verificar que tenemos las columnas necesarias
+#cat("=== VERIFICANDO COLUMNAS ===\n")
+#cat("Columnas disponibles:\n")
+#print(names(datos))
+
+# Verificar que existen las columnas NH4, NO3, PO4
+columnas_necesarias <- c("NH4", "NO3", "PO4", "Parcela", "Cota", "Tratamiento", "Ecosistema", "Orientacion")
+for(col in columnas_necesarias) {
+  if(col %in% names(datos)) {
+    #cat("✓", col, "encontrada\n")
+  } else {
+    #cat("✗", col, "NO encontrada\n")
+  }
+}
+
+# Función para crear gráficos por tipo de ión
+crear_graficos_ion <- function(nombre_ion) {
+  
+  # Calcular estadísticas resumen por Parcela, Cota y Tratamiento
+  datos_resumen <- datos %>%
+    group_by(Parcela, Cota, Tratamiento, Ecosistema, Orientacion) %>%
+    summarise(
+      Media = mean(.data[[nombre_ion]], na.rm = TRUE),
+      Desviacion = sd(.data[[nombre_ion]], na.rm = TRUE),
+      n = n(),
+      .groups = 'drop'
+    ) %>%
+    # Calcular intervalo de confianza (solo si n > 1)
+    mutate(
+      IC_superior = ifelse(n > 1, 
+                          Media + qt(0.975, df = n-1) * (Desviacion / sqrt(n)), 
+                          Media),
+      IC_inferior = ifelse(n > 1, 
+                          Media - qt(0.975, df = n-1) * (Desviacion / sqrt(n)), 
+                          Media)
+    )
+  
+  # Obtener combinaciones únicas de Parcela, Cota, Ecosistema y Orientacion
+  combinaciones <- datos_resumen %>%
+    distinct(Parcela, Cota, Ecosistema, Orientacion) %>%
+    arrange(Parcela, Cota)
+  
+  # Crear lista para almacenar gráficos
+  graficos <- list()
+  
+  # Crear un gráfico para cada combinación de Parcela y Cota
+  for(i in 1:nrow(combinaciones)) {
+    
+    parcela_actual <- combinaciones$Parcela[i]
+    cota_actual <- combinaciones$Cota[i]
+    ecosistema_actual <- combinaciones$Ecosistema[i]
+    orientacion_actual <- combinaciones$Orientacion[i]
+    
+    # Filtrar datos para esta combinación
+    datos_filtrados <- datos_resumen %>%
+      filter(Parcela == parcela_actual, 
+             Cota == cota_actual,
+             Ecosistema == ecosistema_actual,
+             Orientacion == orientacion_actual)
+    
+    # Verificar que hay datos
+    if(nrow(datos_filtrados) > 0) {
+      
+      # Crear el gráfico
+      p <- ggplot(datos_filtrados, aes(x = Tratamiento, y = Media, fill = Tratamiento)) +
+        geom_bar(stat = "identity", position = position_dodge(0.8), width = 0.7) +
+        geom_errorbar(aes(ymin = IC_inferior, ymax = IC_superior),
+                      position = position_dodge(0.8), width = 0.25, linewidth = 0.5) +
+        scale_fill_manual(values = c("Control" = "#023e8a", "Refugio" = "#6a994e")) +
+        labs(
+          title = paste(nombre_ion, "- Parcela:", parcela_actual, "- Cota:", cota_actual, "m.s.n.m."),
+          subtitle = paste("Ecosistema:", ecosistema_actual, "- Orientación:", orientacion_actual),
+          x = "Tratamiento",
+          y = paste(nombre_ion, "(µg cm⁻² day⁻¹)"),
+          fill = "Tratamiento"
+        ) +
+        theme_minimal() +
+        theme(
+          plot.title = element_text(hjust = 0.5, face = "bold", size = 10),
+          plot.subtitle = element_text(hjust = 0.5, size = 9),  # Esta línea es la que añadimos
+          axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
+          axis.text.y = element_text(size = 8),
+          axis.title = element_text(size = 9),
+          legend.position = "none",
+          panel.grid.major.x = element_blank(),
+          panel.grid.minor.x = element_blank(),
+          panel.grid.major.y = element_line(color = "grey80", linewidth = 0.3),
+          panel.grid.minor.y = element_blank()
+        )
+      
+      # Almacenar gráfico en la lista
+      graficos[[paste0(parcela_actual, "_", cota_actual, "_", ecosistema_actual, "_", orientacion_actual)]] <- p
+    }
+  }
+  
+  return(graficos)
+}
+
+# Crear gráficos para cada ión
+#cat("\n=== CREANDO GRÁFICOS DE NH4 ===\n")
+graficos_nh4 <- crear_graficos_ion("NH4")
+
+#cat("\n=== CREANDO GRÁFICOS DE NO3 ===\n")
+graficos_no3 <- crear_graficos_ion("NO3")
+
+#cat("\n=== CREANDO GRÁFICOS DE PO4 ===\n")
+graficos_po4 <- crear_graficos_ion("PO4")
+
+# Mostrar todos los gráficos
+#cat("\n--- MOSTRANDO GRÁFICOS DE NH4 (", length(graficos_nh4), "gráficos) ---\n")
+for(i in seq_along(graficos_nh4)) {
+  print(graficos_nh4[[i]])
+  #cat("Gráfico", i, "de", length(graficos_nh4), "-", names(graficos_nh4)[i], "\n")
+}
+
+#cat("\n--- MOSTRANDO GRÁFICOS DE NO3 (", length(graficos_no3), "gráficos) ---\n")
+for(i in seq_along(graficos_no3)) {
+  print(graficos_no3[[i]])
+  #cat("Gráfico", i, "de", length(graficos_no3), "-", names(graficos_no3)[i], "\n")
+}
+
+#cat("\n--- MOSTRANDO GRÁFICOS DE PO4 (", length(graficos_po4), "gráficos) ---\n")
+for(i in seq_along(graficos_po4)) {
+  print(graficos_po4[[i]])
+  #cat("Gráfico", i, "de", length(graficos_po4), "-", names(graficos_po4)[i], "\n")
+}
+
+# Resumen final
+#cat("\n=== RESUMEN FINAL ===\n")
+#cat("Total de gráficos de NH4 creados:", length(graficos_nh4), "\n")
+#cat("Total de gráficos de NO3 creados:", length(graficos_no3), "\n")
+#cat("Total de gráficos de PO4 creados:", length(graficos_po4), "\n")
+#cat("¡Proceso completado exitosamente!\n")
+
+```
