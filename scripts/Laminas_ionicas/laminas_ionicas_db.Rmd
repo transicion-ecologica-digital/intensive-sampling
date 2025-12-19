@@ -1,10 +1,6 @@
 ---
 title: "Task E.2) Disponibilidad de nutrientes del suelo"
-author: ''
-date: ''
-output:
-  word_document: default
-  html_document: default
+
 ---
 
 # Introducción:
@@ -13,21 +9,21 @@ La disponibilidad de nutrientes en el suelo se estimará mediante membranas de i
 
 # Hipótesis:
 
-Nuestra hipótesis es que los Es biogénicos favorecen una mayor y más prolongada actividad de microorganismos y artrópodos en el suelo, lo que permite una descomposición más rápida de la materia orgánica, mediante procesos de respiración, y por lo tanto un reciclaje más eficaz de nutrientes (mayor homeostasis) en la isla biogénica creada por las arboledas de enebro, roble y pino que en los espacios abiertos que las rodean.
+Nuestra hipótesis es que los refugios biogénicos favorecen una mayor y más prolongada actividad de microorganismos y artrópodos en el suelo, lo que permite una descomposición más rápida de la materia orgánica, mediante procesos de respiración, y por lo tanto un reciclaje más eficaz de nutrientes (mayor homeostasis) en la isla biogénica creada por las arboledas de enebro, roble y pino que en los espacios abiertos que las rodean.
 
 # Metodología original:
 
-En cada una de las 86 verbatim_microstationes, se enterrarán aleatoriamente en el suelo tres MII de cationes y tres de aniones, y se incubarán en el campo durante 30 días (de abril a mayo de 2023). Después de su extracción, los IEM (un total de 258 IEM catiónicos y 258 IEM aniónicos) se llevarán al laboratorio, se secarán a temperatura ambiente y se analizarán para estimar los cationes y aniones de los IEM.
+En cada una de las 86 microestaciones, se enterrarán aleatoriamente en el suelo tres MII de cationes y tres de aniones, y se incubarán en el campo durante 30 días (de abril a mayo de 2023). Después de su extracción, los IEM (un total de 258 IEM catiónicos y 258 IEM aniónicos) se llevarán al laboratorio, se secarán a temperatura ambiente y se analizarán para estimar los cationes y aniones de los IEM.
 
 # Metodología real:
 
 Se realizó un muestreo con láminas iónicas para determinar la disponibilidad en el medio de amonio, nitrato y fosfato presentes en los suelos de nuestras zonas de estudio. 
-Para llevar a cabo este muestreo, se usaron etiquetas de pvc, con una resina catiónica y aniónica en cada cara, respectivamente. Estas resinas, tienen una superficie aproximada de 4x2 cm. Las etiquetas, se enterraron en los primeros 5 cm del suelo, lo que es llamado como “suelo mineral”. Se enterraron 3 etiquetas por cada una de las verbatim_microstationes meteorológicas que componen las plots de estudio. En total, se instalaron 231 etiquetas, pero debido a la acción de la fauna, algunas desaparecieron, y finalmente se recolectaron 224 etiquetas.
+Para llevar a cabo este muestreo, se usaron etiquetas de pvc, con una resina catiónica y aniónica en cada cara, respectivamente. Estas resinas, tienen una superficie aproximada de 4x2 cm. Las etiquetas, se enterraron en los primeros 5 cm del suelo, lo que es llamado como “suelo mineral”. Se enterraron 3 etiquetas por cada una de las microestaciones meteorológicas que componen las parcelas de estudio. En total, se instalaron 231 etiquetas, pero debido a la acción de la fauna, algunas desaparecieron, y finalmente se recolectaron 224 etiquetas.
 Estas etiquetas se instalaron en campo durante los meses de abril y mayo de 2024, y se recogieron en los meses de junio y julio de ese mismo año. Tras su recolección, se empaquetaron y se enviaron para su posterior análisis.
 
 # Análisis de datos:
 
-Se realizó un análisis exploratorio mediante diagramas de caja y bigotes para comparar la concentración de cada ión (ammonium_ug_cm2_day, nitrate_ug_cm2_day y phosphate_ug_cm2_day) entre treatments (C vs. E), estratificado por ecosystem, orientation y altitude altitudinal. Los diagramas muestran la mediana (línea central), el rango intercuartílico (caja), la dispersión total (bigotes) y valores atípicos (puntos individuales), complementados con la media aritmética (punto rojo).
+Se realizó un análisis exploratorio mediante diagramas de caja y bigotes para comparar la concentración de cada ión (NH4, NO3 y PO4) entre tratamientos (Control vs. Refugio), estratificado por ecosistema, orientación y cota altitudinal. Los diagramas muestran la mediana (línea central), el rango intercuartílico (caja), la dispersión total (bigotes) y valores atípicos (puntos individuales), complementados con la media aritmética (punto rojo).
 
 ```{r, message=FALSE, warning=FALSE, echo=FALSE}
 
@@ -438,7 +434,7 @@ for(ion in c("ammonium_ug_cm2_day", "nitrate_ug_cm2_day", "phosphate_ug_cm2_day"
 
 ```
 
-## ANEXO 1: Gráficos de concentración de ammonium_ug_cm2_day, nitrate_ug_cm2_day y phosphate_ug_cm2_day, según la plot y la altitude
+## ANEXO 1: Gráficos de concentración de NH4, NO3 y PO4, según la parcela y la cota
 
 ```{r, message=FALSE, warning=FALSE, echo=FALSE}
 

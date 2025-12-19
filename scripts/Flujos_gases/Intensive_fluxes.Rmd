@@ -1,11 +1,6 @@
 ---
 title: "E.3) Flujos de CO₂ y CH₄ en el suelo"
-author: ''
-date: ''
-output:
-  word_document: default
-  pdf_document: default
-  html_document: default
+
 ---
 
 # Introducción:
@@ -14,22 +9,22 @@ El objetivo E.3) se enfoca en medir los flujos de CO₂ y CH₄ del suelo, con e
 
 # Hipótesis: 
 
-Nuestra hipótesis plantea que la respiración del suelo en los Es biogénicos será mayor que en los espacios abiertos, debido al aumento de la actividad vegetal que proporciona la respiración autotrófica y a una mayor actividad prolongada de microorganismos y artrópodos del suelo, en relación a la respiración heterotrófica.
+Nuestra hipótesis plantea que la respiración del suelo en los refugios biogénicos será mayor que en los espacios abiertos, debido al aumento de la actividad vegetal que proporciona la respiración autotrófica y a una mayor actividad prolongada de microorganismos y artrópodos del suelo, en relación a la respiración heterotrófica.
 
 # Metodología original: 
 
-Para el muestreo de los flujos de CO₂ y CH₄ del suelo, se ha usado una cámara inteligente portátil (smartchamber) que evalúa la variabilidad espacial y calcula los flujos de gas del suelo, conectada a un analizador de gases traza (IRGA Li-7810) que proporciona mediciones estables y precisas tanto de CO₂ como de CH₄. Para ello, se colocaron diversos collares con un volumen conocido en lugares bajo vegetación y en suelo descubierto en algunas plots de nuestro estudio. Para los pinares, se colocan sobre los restos de poda en los asociados a vegetación y en suelo desnudo en el caso de los collares C (matriz). Se planteaba instalar 3 collares de PVC en 43 related_microstation_ides (129 collares de PVC). Las mediciones serían realizadas cada 15 días desde marzo a noviembre de 2023 y 2024.
-Además, para testear la capacidad de estimar las emisiones contínuas de CO₂ en el suelo, se instalarán 3 sensores de humedad, concentración de CO₂, temperatura y conductividad por microestación en 12 related_microstation_ides. Esta información será validada con los datos de las mediciones temporales del sistema Li-7810.
+Para el muestreo de los flujos de CO₂ y CH₄ del suelo, se ha usado una cámara inteligente portátil (smartchamber) que evalúa la variabilidad espacial y calcula los flujos de gas del suelo, conectada a un analizador de gases traza (IRGA Li-7810) que proporciona mediciones estables y precisas tanto de CO₂ como de CH₄. Para ello, se colocaron diversos collares con un volumen conocido en lugares bajo vegetación y en suelo descubierto en algunas parcelas de nuestro estudio. Para los pinares, se colocan sobre los restos de poda en los refugios asociados a vegetación y en suelo desnudo en el caso de los collares C (matriz). Se planteaba instalar 3 collares de PVC en 43 microestaciones (129 collares de PVC). Las mediciones serían realizadas cada 15 días desde marzo a noviembre de 2023 y 2024.
+Además, para testear la capacidad de estimar las emisiones contínuas de CO₂ en el suelo, se instalarán 3 sensores de humedad, concentración de CO₂, temperatura y conductividad por microestación en 12 microestaciones. Esta información será validada con los datos de las mediciones temporales del sistema Li-7810.
 
 # Metodología real: 
 
 La frecuencia de las medidas fue de una vez al mes. El período de medición fue para el año 2023, desde septiembre a noviembre. Para el año 2024, fue desde abril a octubre. En ningún caso se midió durante el período invernal (diciembre-marzo) ni en el mes de agosto. 
 La cantidad de collares instalados fue de 159 en diferentes altitudes y plots. En total, el número de mediciones puntuales ha sido de 2862 ocasiones.
-Respecto a las emisiones en contínuo de CO₂, se instalarón 3 sensores por microestación en 8 related_microstation_ides, pareándose entre el efecto del E y en la matriz ambiental. Se tienen datos de algunas related_microstation_ides (sin funcionar correctamente y durante todo el período) desde sepiembre de 2022 hasta abril de 2025.
+Respecto a las emisiones en contínuo de CO₂, se instalarón 3 sensores por microestación en 8 microestaciones, pareándose entre el efecto del refugio y en la matriz ambiental. Se tienen datos de algunas microestaciones (sin funcionar correctamente y durante todo el período) desde sepiembre de 2022 hasta abril de 2025.
 
 # Análisis de datos:
 
-Se muestra graficamente los valores de los flujos de CO₂ y CH₄ obtenidos y los ánalisis estadísticos que se le aplican. El valor de "n", hace referencia al número de related_microstation_ides que cumplen las combinaciones de cada gráfica:
+Se muestra graficamente los valores de los flujos de CO₂ y CH₄ obtenidos y los ánalisis estadísticos que se le aplican. El valor de "n", hace referencia al número de microestaciones que cumplen las combinaciones de cada gráfica:
 
 ```{r, message=FALSE, warning=FALSE, echo=FALSE}
 # PREPARACIÓN DE LA BASE DE DATOS

@@ -1,19 +1,15 @@
 ---
 title: "C.1) Diversidad y abundancia de juveniles leñosos"
-author: ''
-date: ''
-output:
-  word_document: default
-  html_document: default
+
 ---
 
 # Introducción:
 
-El objetivo C.1) se centra en determinar la diversidad y abundancia de especies leñosas que existen en el banco de árboles jóvenes, tanto dentro de los Es biogénicos creados por los bosques de enebros, robles y pinos como fuera de ellos, en la matriz ambiental.
+El objetivo C.1) se centra en determinar la diversidad y abundancia de especies leñosas que existen en el banco de árboles jóvenes, tanto dentro de los refugios biogénicos creados por los bosques de enebros, robles y pinos como fuera de ellos, en la matriz ambiental.
 
 # Hipótesis:
 
-Nuestra hipótesis es que los Es biogénicos deberían tener un conjunto de reclutas más abundante y diversos que los espacios abiertos que los rodean, ya que la lluvia de semillas es mayor dentro de los Es y las plántulas sobreviven mejor en su microambiente. Cuanto mayor sea la diversidad de especies que componen el banco de reclutamiento, más probable será que contengan especies con diferentes rasgos funcionales y fenologías, lo que permite la complementariedad de nichos en el uso de los recursos y un período de crecimiento más largo de la comunidad de árboles jóvenes. 
+Nuestra hipótesis es que los refugios biogénicos deberían tener un conjunto de reclutas más abundante y diversos que los espacios abiertos que los rodean, ya que la lluvia de semillas es mayor dentro de los refugios y las plántulas sobreviven mejor en su microambiente. Cuanto mayor sea la diversidad de especies que componen el banco de reclutamiento, más probable será que contengan especies con diferentes rasgos funcionales y fenologías, lo que permite la complementariedad de nichos en el uso de los recursos y un período de crecimiento más largo de la comunidad de árboles jóvenes. 
 
 # Metodología original:
 
@@ -21,13 +17,13 @@ Se plantea monitorizar la abundancia y diversidad de plántulas dentro del círc
 
 # Metodología real:
 
-Se ha determinado la abundancia y diversidad de especies leñosas o juveniles, en cada una de las verbatim_microstationes que componen nuestras plots de estudio. 
+Se ha determinado la abundancia y diversidad de especies leñosas o juveniles, en cada una de las microestaciones que componen nuestras parcelas de estudio. 
 De este modo, se ha delimitado un cuadrado de 5m alrededor de la microestación y, a su vez, 4 cuadrantes de 2.5 x 2.5 m. Dentro de cada cuadrante, se ha representado la especie predominante y su cobertura. Finalmente, se apuntan cada una de las especies de juveniles que se observan en ese cuadrante, así como su altura.
-Este seguimiento, se ha realizado una sola vez en cada microestación, en los meses de junio, julio, octubre y noviembre de 2024, y también en el mes de julio de 2025, para las verbatim_microstationes que faltaban del año anterior.
+Este seguimiento, se ha realizado una sola vez en cada microestación, en los meses de junio, julio, octubre y noviembre de 2024, y también en el mes de julio de 2025, para las microestaciones que faltaban del año anterior.
 
 # Análisis de datos: 
 
-Se realizó un análisis exploratorio mediante diagramas de caja y bigotes para comparar el número de individuos cada 100m2 entre treatments (C vs. E), estratificado por ecosystem, orientación y altitude altitudinal. Los diagramas muestran la mediana (línea central), el rango intercuartílico (caja), la dispersión total (bigotes) y valores atípicos (puntos individuales), complementados con la media aritmética (punto rojo).
+Se realizó un análisis exploratorio mediante diagramas de caja y bigotes para comparar el número de individuos cada 100m2 entre tratamientos (Control vs. Refugio), estratificado por ecosistema, orientación y cota altitudinal. Los diagramas muestran la mediana (línea central), el rango intercuartílico (caja), la dispersión total (bigotes) y valores atípicos (puntos individuales), complementados con la media aritmética (punto rojo).
 
 ```{r, message=FALSE, warning=FALSE, echo=FALSE}
 # Cargar librerías necesarias
@@ -513,7 +509,7 @@ if(!is.null(p_robledal)) print(p_robledal)
 
 ```
 
-## ANEXO 1: Especie de juveniles y número de individuos según treatment y plot
+## ANEXO 1: Especie de juveniles y número de individuos según tratamiento y parcela
 
 ```{r, message=FALSE, warning=FALSE, echo=FALSE}
 
@@ -667,10 +663,10 @@ for(i in 1:nrow(combinaciones_unicas)) {
 
 # Resultados y conclusiones: 
 
-Analizando los resultados obtenidos, podemos afirmar que en la cara North, hay más especies (12) que en la cara South (9). Por otro lado, observamos que la distribución de la diversidad de especies se representa de manera desigual: 10 especies en C (con 112 individuos) y 10 en E (con 118 individuos) en la cara North (de las 12 totales) y 8 en C (con 200 individuos) y 6 en E (con 288 individuos) en la cara South (de las 9 totales para esta orientación). 
+Analizando los resultados obtenidos, podemos afirmar que en la cara norte, hay más especies (12) que en la cara sur (9). Por otro lado, observamos que la distribución de la diversidad de especies se representa de manera desigual: 10 especies en control (con 112 individuos) y 10 en refugio (con 118 individuos) en la cara norte (de las 12 totales) y 8 en control (con 200 individuos) y 6 en refugio (con 288 individuos) en la cara sur (de las 9 totales para esta orientación). 
 
-De este modo, se observa que hay una mayor cantidad de individuos en la cara South (488) respecto a la cara North (230). 
+De este modo, se observa que hay una mayor cantidad de individuos en la cara sur (488) respecto a la cara norte (230). 
 
-Así concluimos que la diversidad es similar entre treatments para la cara North, aunque el número de individuos es mayor en el E, mientras que existe una mayor diversidad en la matriz ambiental de la cara South, aunque con un mayor número de individuos en el E de esta orientación, al igual que sucede en la cara North.
+Así concluimos que la diversidad es similar entre tratamientos para la cara norte, aunque el número de individuos es mayor en el refugio, mientras que existe una mayor diversidad en la matriz ambiental de la cara sur, aunque con un mayor número de individuos en el refugio de esta orientación, al igual que sucede en la cara norte.
 
-Se cumple la hipótesis de que hay mayor número de individuos bajo los Es biogénicos, mientras que la diversidad no cumple dicha premisa en la cara North al estar igualado el número de especies, a la vez que se contradice en la cara South, al ser superior el número de especies presentes en la matriz ambiental respecto al E biogénico.
+Se cumple la hipótesis de que hay mayor número de individuos bajo los refugios biogénicos, mientras que la diversidad no cumple dicha premisa en la cara norte al estar igualado el número de especies, a la vez que se contradice en la cara sur, al ser superior el número de especies presentes en la matriz ambiental respecto al refugio biogénico.

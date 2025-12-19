@@ -4,25 +4,25 @@ title: "Task B.1) Germinación de semillas de Berberis Hipanica"
 
 # Introducción:
 
-Para llevar a cabo este task, se siembran semillas de Berberis hispanica dentro y fuera de los Es biogénicos. Elegimos esta especie porque es una especie abundante que se da de forma natural en bosques de enebros, robles y pinos, y porque sus semillas no tienen latencia y germinan al año siguiente de la siembra.
+Para llevar a cabo este task, se siembran semillas de Berberis hispanica dentro y fuera de los refugios biogénicos. Elegimos esta especie porque es una especie abundante que se da de forma natural en bosques de enebros, robles y pinos, y porque sus semillas no tienen latencia y germinan al año siguiente de la siembra.
 
 # Hipótesis:
-Nuestra hipótesis es que el éxito de la germinación de las semillas y la supervivencia de las plántulas de Berberis hispanica será mayor en los Es biogénicos que fuera de ellos, debido a la homeostasis microclimática y la fertilización del suelo que generan.
+Nuestra hipótesis es que el éxito de la germinación de las semillas y la supervivencia de las plántulas de Berberis hispanica será mayor en los refugios biogénicos que fuera de ellos, debido a la homeostasis microclimática y la fertilización del suelo que generan.
 
 # Metodología original:
 
-Realizaremos 3 puntos de siembra, colocando 10 semillas en cada punto enterradas a unos 3 cm de profundidad (total = 30 semillas) alrededor de cada microestación (Total: 84 verbatim_microstationes x 30 semillas) = 2520 semillas de Berberis hispanica sembradas. La plantación se realizará en octubre/noviembre de 2022 y se revisará mensualmente de abril a octubre de 2023 y 2024 para determinar el establecimiento y la supervivencia de las plántulas durante los dos años del proyecto.
+Realizaremos 3 puntos de siembra, colocando 10 semillas en cada punto enterradas a unos 3 cm de profundidad (total = 30 semillas) alrededor de cada microestación (Total: 84 microestaciones x 30 semillas) = 2520 semillas de Berberis hispanica sembradas. La plantación se realizará en octubre/noviembre de 2022 y se revisará mensualmente de abril a octubre de 2023 y 2024 para determinar el establecimiento y la supervivencia de las plántulas durante los dos años del proyecto.
 
 # Metodología real:
 
-Se plantaron semillas de Berberis hispánica en cada una de las verbatim_microstationes que componen las plots. Por cada microestación se pusieron 3 mallas metálicas, para evitar herbivoría, y dentro de cada malla 15 semillas, en tres grupos de 5 semillas separadas 4 cm entre ellas y a 3 cm de profundidad. 
+Se plantaron semillas de Berberis hispánica en cada una de las microestaciones que componen las parcelas. Por cada microestación se pusieron 3 mallas metálicas, para evitar herbivoría, y dentro de cada malla 15 semillas, en tres grupos de 5 semillas separadas 4 cm entre ellas y a 3 cm de profundidad. 
 Las semillas se sembraron durante los meses de junio y julio de 2023, y se revisaron durante el periodo de muestreo de 2024, es decir, desde abril hasta octubre. Estas semillas no germinaron correctamente, y se volvieron a sembrar durante el mes de noviembre de 2024, repitiendo la misma metodología y siendo revisadas desde abril a septiembre de 2025. Tanto en 2024 como en 2025 no se realizó la revisión durante el mes de agosto. Las semillas sembradas en 2024, fueron recolectadas de Berberis silvestres ubicados en diferentes zonas de Sierra Nevada. 
-En 2023, las semillas fueron sembradas en 77 verbatim_microstationes, 3 mallas por microestación y 15 semillas por malla, se sembraron un total de 3465 semillas.
-En 2024, las semillas fueron sembradas en 84 verbatim_microstationes, ya que durante ese periodo se instalaron las verbatim_microstationes que faltaban en algunas de las plots, que no pudieron ser instaladas antes debido a la falta de sensores. Por tanto, en 2024 se sembraron 3780 semillas.
+En 2023, las semillas fueron sembradas en 77 microestaciones, 3 mallas por microestación y 15 semillas por malla, se sembraron un total de 3465 semillas.
+En 2024, las semillas fueron sembradas en 84 microestaciones, ya que durante ese periodo se instalaron las microestaciones que faltaban en algunas de las parcelas, que no pudieron ser instaladas antes debido a la falta de sensores. Por tanto, en 2024 se sembraron 3780 semillas.
 
 # Análisis de datos:
 
-A continuación, se procede a analizar los datos obtenidos, mostrando los script al respecto y el tipo de análisis estadístico aplicado. Se realizó un análisis exploratorio mediante diagramas de caja y bigotes para comparar el porcentaje de germinación acumulada y superviviencia final (de dicha germinación previa) entre treatments (C vs. E), estratificado por ecosystem, orientación y altitude altitudinal. Los diagramas muestran la mediana (línea central), el rango intercuartílico (caja), la dispersión total (bigotes) y valores atípicos (puntos individuales), complementados con la media aritmética (punto rojo).:
+A continuación, se procede a analizar los datos obtenidos, mostrando los script al respecto y el tipo de análisis estadístico aplicado. Se realizó un análisis exploratorio mediante diagramas de caja y bigotes para comparar el porcentaje de germinación acumulada y superviviencia final (de dicha germinación previa) entre tratamientos (Control vs. Refugio), estratificado por ecosistema, orientación y cota altitudinal. Los diagramas muestran la mediana (línea central), el rango intercuartílico (caja), la dispersión total (bigotes) y valores atípicos (puntos individuales), complementados con la media aritmética (punto rojo).:
 
 ```{r, message=FALSE, warning=FALSE, echo=FALSE}
 

@@ -1,10 +1,6 @@
 ---
 title: "Task E.2) Disponibilidad de nutrientes del suelo"
-author: ''
-date: ''
-output:
-  word_document: default
-  html_document: default
+
 ---
 
 # Introducción:

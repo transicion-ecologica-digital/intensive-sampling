@@ -10,11 +10,11 @@ output:
 
 # Introducción:
 
-El objetivo del apartado C.2) es determinar la diversidad específica y funcional, así como la abundancia de species herbáceas tanto dentro como fuera de los Es biogénicos. Mientras que el objetivo del apartado D.1) es determinar el crecimiento y la senescencia de la vegetación herbácea. 
+El objetivo del apartado C.2) es determinar la diversidad específica y funcional, así como la abundancia de especies herbáceas tanto dentro como fuera de los refugios biogénicos. Mientras que el objetivo del apartado D.1) es determinar el crecimiento y la senescencia de la vegetación herbácea. 
 
 # Hipótesis:
 
-Nuestra hipótesis es que los Es biogénicos deberían tener una mayor diversidad de species que los espacios abiertos que los rodean. Cuanto mayor sea la diversidad del banco de species herbáceas, más probable será que contengan species con diferentes rasgos funcionales y fenologías, lo que permite la complementariedad de nichos en el uso de los recursos y un período más largo de crecimiento y reproducción de la comunidad vegetal, además de ofrecer más alternativas de adaptación y una mayor capacidad de respuesta (resiliencia) de la vegetación herbácea frente al cambio climático.
+Nuestra hipótesis es que los refugios biogénicos deberían tener una mayor diversidad de especies que los espacios abiertos que los rodean. Cuanto mayor sea la diversidad del banco de especies herbáceas, más probable será que contengan especies con diferentes rasgos funcionales y fenologías, lo que permite la complementariedad de nichos en el uso de los recursos y un período más largo de crecimiento y reproducción de la comunidad vegetal, además de ofrecer más alternativas de adaptación y una mayor capacidad de respuesta (resiliencia) de la vegetación herbácea frente al cambio climático.
 
 # Metodología original:
 
@@ -22,22 +22,22 @@ En la metodología original del apartado C.2), se propuso realizar muestreos de 
 
 # Metodología real:
 
-La metodología llevada a cabo para el seguimiento de la diversidad y la fenología de la flora, se centra en la delimitación de 2 cuadrados por microestación, de 1m x 1m, con la ayuda de cuatro estacas de metal. Estos pares se asociaron a la matriz ambiental y otro par de las mismas dimensiones, se asociaron al E biogénico en concreto. Estos cuadrados son permanentes y a su vez, se subdividen en 4 subapartados de izquierda a derecha y de arriba a abajo, entendiéndose cada uno de ellos como A, B, C y D. Con el fin de saber cual es cada uno de ellos, se establece como referencia uno de los vértices del cuadrado, pintado de un color llamativo. Posteriormente, con una cuerda, se delimita cada uno de esos subapartados cuando se va a realizar el muestreo y luego se retira la misma. 
-El procedimiento consiste en identificar cada specie presente en cada subapartado, a la cual se le asigna un porcentaje en base a la presencia relativa al resto de species del mismo subapartado, siendo el valor máximo de la suma de todas las species el 100%. También se determinó el estado fenológico (fenofase) de cada herbácea, con diferentes niveles, pudiendo ser vegetativo, floración, fructificación o muerta. 
-Junto con esta información, se añade la cantidad de cover herbácea y el estado de la misma (verde o seca), además de si existe cover de tipo no herbácea (verde o seca), si existe algún espacio sin ningún tipo de cover (suelo desnudo) o si existe algún espacio cubierto por algún tipo de resto orgánico vegetal. La suma de todos los tipos de cover no puede superar el 100%. Paralelo a esto, se añadió la cover arbórea que hay justo encima del cuadrado completo, siendo el valor máximo un 100% de cover arbórea.
+La metodología llevada a cabo para el seguimiento de la diversidad y la fenología de la flora, se centra en la delimitación de 2 cuadrados por microestación, de 1m x 1m, con la ayuda de cuatro estacas de metal. Estos pares se asociaron a la matriz ambiental y otro par de las mismas dimensiones, se asociaron al refugio biogénico en concreto. Estos cuadrados son permanentes y a su vez, se subdividen en 4 subapartados de izquierda a derecha y de arriba a abajo, entendiéndose cada uno de ellos como A, B, C y D. Con el fin de saber cual es cada uno de ellos, se establece como referencia uno de los vértices del cuadrado, pintado de un color llamativo. Posteriormente, con una cuerda, se delimita cada uno de esos subapartados cuando se va a realizar el muestreo y luego se retira la misma. 
+El procedimiento consiste en identificar cada especie presente en cada subapartado, a la cual se le asigna un porcentaje en base a la presencia relativa al resto de especies del mismo subapartado, siendo el valor máximo de la suma de todas las especies el 100%. También se determinó el estado fenológico (fenofase) de cada herbácea, con diferentes niveles, pudiendo ser vegetativo, floración, fructificación o muerta. 
+Junto con esta información, se añade la cantidad de cobertura herbácea y el estado de la misma (verde o seca), además de si existe cobertura de tipo no herbácea (verde o seca), si existe algún espacio sin ningún tipo de cobertura (suelo desnudo) o si existe algún espacio cubierto por algún tipo de resto orgánico vegetal. La suma de todos los tipos de cobertura no puede superar el 100%. Paralelo a esto, se añadió la cobertura arbórea que hay justo encima del cuadrado completo, siendo el valor máximo un 100% de cobertura arbórea.
 El período de muestreo se inició en septiembre de 2023 hasta noviembre de dicho año, aunque estos datos fueron descartados ya que no se siguió correctamente la metodología anteriormente descrita, y no podían ser comparables con los datos de los muestreos de los años posteriores. Se continuó en mayo de 2024 hasta octubre del mismo año, y el último período abarca desde abril de 2025 hasta septiembre del mismo. La periodicidad del muestreo fue de una vez al mes. No se muestreó durante los meses invernales (noviembre-marzo) ni el mes de agosto. 
-Las species que no se han podido identificar en campo en el momento de muestreo, se han identificado en laboratorio a través de la extracción de un ejemplar externo al cuadrado delimitado para el muestreo. 
-En total, tanto en 2023 como en 2024, se realizó el seguimiento de flora de 616 subapartados dentro de los 154 cuadrados delimitados, distribuidos en las 77 verbatim_microstationes que se instalaron inicialmente.
+Las especies que no se han podido identificar en campo en el momento de muestreo, se han identificado en laboratorio a través de la extracción de un ejemplar externo al cuadrado delimitado para el muestreo. 
+En total, tanto en 2023 como en 2024, se realizó el seguimiento de flora de 616 subapartados dentro de los 154 cuadrados delimitados, distribuidos en las 77 microestaciones que se instalaron inicialmente.
 
 # Análisis de datos:
 
-A continuación, se representa gráficamente la diversidad taxonómica y funcional, así como el porcentaje de cover y el porcentaje de verde.
+A continuación, se representa gráficamente la diversidad taxonómica y funcional, así como el porcentaje de cobertura y el porcentaje de verde.
 
 ## Diversidad taxonómica:
 
-Para la diversidad taxonómica, los datos se representan gráficamente por family y por specie.
+Para la diversidad taxonómica, los datos se representan gráficamente por familia y por especie.
 
-### Diversidad por family:
+### Diversidad por Familia:
 
 ```{r, message=FALSE, warning=FALSE, echo=FALSE}
 
@@ -79,26 +79,6 @@ datos <- datos %>%
 # Crear subsets por año
 datos_2024_sub <- datos %>% filter(Año == 2024)
 datos_2025_sub <- datos %>% filter(Año == 2025)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 # FUNCIÓN PARA PROCESAR DATOS DE UN AÑO - CORREGIDA Y MEJORADA
 procesar_datos_año <- function(datos_subset, año) {
@@ -544,7 +524,7 @@ if(!is.null(p3_shannon)) print(p3_shannon)
 
 ```
 
-### Diversidad por specie:
+### Diversidad por especies:
 
 ```{r, message=FALSE, warning=FALSE, echo=FALSE}
 
@@ -586,19 +566,6 @@ datos <- datos %>%
 # Crear subsets por año
 datos_2024_sub <- datos %>% filter(Año == 2024)
 datos_2025_sub <- datos %>% filter(Año == 2025)
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 # FUNCIÓN PARA PROCESAR DATOS DE UN AÑO - CORREGIDA Y MEJORADA
 procesar_datos_año <- function(datos_subset, año) {
@@ -1048,7 +1015,7 @@ if(!is.null(p3_shannon)) print(p3_shannon)
 
 Para la diversidad funcional, los datos se representan gráficamente según los biotypes de Raunkiaer y según su forma de vida.
 
-### Diversidad biotypes (biotypes de Raunkiaer):
+### Diversidad biotipos (biotipos de Raunkiaer):
 
 ```{r, message=FALSE, warning=FALSE, echo=FALSE}
 
@@ -2039,7 +2006,7 @@ if(!is.null(p3_shannon)) print(p3_shannon)
 
 ```
 
-## ANEXO 1: Porcentaje de cover formas de vida:
+## ANEXO 1: Porcentaje de cobertura de formas de vida:
 
 ```{r, message=FALSE, warning=FALSE, echo=FALSE}
 
@@ -2246,7 +2213,7 @@ for(ecosystem in ecosystems) {
 
 ```
 
-## ANEXO 2: Porcentaje de verde evolución fenofases:
+## ANEXO 2: Porcentaje de verde en la evolución de fenofases:
 
 ```{r, message=FALSE, warning=FALSE, echo=FALSE}
 

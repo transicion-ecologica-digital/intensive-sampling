@@ -1,11 +1,6 @@
 ---
 title: "Task C.2) & D.1) Diversidad taxonómica, diversidad funcional y fenología de flora."
-author: ''
-date: ''
-output:
-  word_document: default
-  pdf_document: default
-  html_document: default
+
 ---
 
 # Introducción:
