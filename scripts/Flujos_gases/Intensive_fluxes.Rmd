@@ -1,0 +1,438 @@
+---
+title: "E.3) Flujos de CO₂ y CH₄ en el suelo"
+author: ''
+date: ''
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+
+# Introducción:
+
+El objetivo E.3) se enfoca en medir los flujos de CO₂ y CH₄ del suelo, con el fin de cuantificar los procesos de respiración.
+
+# Hipótesis: 
+
+Nuestra hipótesis plantea que la respiración del suelo en los Es biogénicos será mayor que en los espacios abiertos, debido al aumento de la actividad vegetal que proporciona la respiración autotrófica y a una mayor actividad prolongada de microorganismos y artrópodos del suelo, en relación a la respiración heterotrófica.
+
+# Metodología original: 
+
+Para el muestreo de los flujos de CO₂ y CH₄ del suelo, se ha usado una cámara inteligente portátil (smartchamber) que evalúa la variabilidad espacial y calcula los flujos de gas del suelo, conectada a un analizador de gases traza (IRGA Li-7810) que proporciona mediciones estables y precisas tanto de CO₂ como de CH₄. Para ello, se colocaron diversos collares con un volumen conocido en lugares bajo vegetación y en suelo descubierto en algunas plots de nuestro estudio. Para los pinares, se colocan sobre los restos de poda en los asociados a vegetación y en suelo desnudo en el caso de los collares C (matriz). Se planteaba instalar 3 collares de PVC en 43 related_microstation_ides (129 collares de PVC). Las mediciones serían realizadas cada 15 días desde marzo a noviembre de 2023 y 2024.
+Además, para testear la capacidad de estimar las emisiones contínuas de CO₂ en el suelo, se instalarán 3 sensores de humedad, concentración de CO₂, temperatura y conductividad por microestación en 12 related_microstation_ides. Esta información será validada con los datos de las mediciones temporales del sistema Li-7810.
+
+# Metodología real: 
+
+La frecuencia de las medidas fue de una vez al mes. El período de medición fue para el año 2023, desde septiembre a noviembre. Para el año 2024, fue desde abril a octubre. En ningún caso se midió durante el período invernal (diciembre-marzo) ni en el mes de agosto. 
+La cantidad de collares instalados fue de 159 en diferentes altitudes y plots. En total, el número de mediciones puntuales ha sido de 2862 ocasiones.
+Respecto a las emisiones en contínuo de CO₂, se instalarón 3 sensores por microestación en 8 related_microstation_ides, pareándose entre el efecto del E y en la matriz ambiental. Se tienen datos de algunas related_microstation_ides (sin funcionar correctamente y durante todo el período) desde sepiembre de 2022 hasta abril de 2025.
+
+# Análisis de datos:
+
+Se muestra graficamente los valores de los flujos de CO₂ y CH₄ obtenidos y los ánalisis estadísticos que se le aplican. El valor de "n", hace referencia al número de related_microstation_ides que cumplen las combinaciones de cada gráfica:
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+# PREPARACIÓN DE LA BASE DE DATOS
+
+library(DBI)
+library(RPostgres)
+con <- dbConnect(
+  RPostgres::Postgres(),
+  dbname = "your-database",
+  host = "your-IP",      # o la IP del servidor (ej. 192.168.1.50)
+  port = 5432,             # 5432 es el puerto por defecto de Postgres
+  user = "your-user",
+  password = "your-password" # Ver nota de seguridad abajo
+)
+
+datos <- dbReadTable(con, "intensive_fluxes")
+
+dbDisconnect(con)
+
+# Cargar librerías necesarias
+library(ggplot2)
+library(dplyr)
+library(tidyverse)
+library(ggpattern)
+
+
+ # RECATEGORIZACIÓN DE ECOSYSTEMS - REEMPLAZAR LA COLUMNA ECOSYSTEM
+  datos <- datos %>%
+    mutate(ecosystem = case_when(
+      ecosystem == "Holm oak forest (Quercus ilex)" & grepl("F", plot, ignore.case = TRUE) ~ "Encinar seco",
+      ecosystem == "Holm oak forest (Quercus ilex)" & grepl("C", plot, ignore.case = TRUE) ~ "Encinar húmedo",
+      ecosystem == "Aleppo pine plantation (Pinus halepensis)" ~ "P_halepensis",
+      ecosystem == "Scots pine plantation (Pinus sylvestris)" ~ "P_sylvestris",
+      ecosystem %in% c("Juniper scrub (Juniperus communis)", "Cushion scrub (Genista versicolor/Cytisus galianoi)") ~ "Matorral A.M.",
+      ecosystem == "Maple forest (Sorbus Aria - Acer opalus)" ~ "Robledal",
+      ecosystem == "Pyrenean oak forest (Quercus pyrenaica)" ~ "Robledal",
+      TRUE ~ ecosystem
+    ))
+  
+  
+# Excluir related_microstation_ides 60, 63 y 57
+datos <- datos %>% filter(!related_microstation_id %in% c(356))
+
+# Definir el orden deseado de los ecosystems (sin Encinar húmedo)
+orden_ecosystems <- c("P_halepensis", "Encinar seco","Encinar húmedo","Robledal", "P_sylvestris", "Matorral A.M.")
+
+# Convertir variables y ordenar ecosystems
+datos$altitude <- as.factor(datos$altitude)
+datos$orientation <- as.factor(datos$orientation)
+datos$ecosystem <- factor(datos$ecosystem, levels = orden_ecosystems)
+
+# 3. FUNCIÓN PARA CREAR GRÁFICOS POR ecosystem PARA FLUX (BOXPLOT)
+crear_grafico_ecosystem_flux <- function(df, flux_seleccionado) {
+  
+  # Determinar título y etiqueta Y según el tipo de flux
+  if (flux_seleccionado == "co2_f_o") {
+    titulo_grafico <- "Flujo de CO"[2]~" por ecosystem"
+    etiqueta_y <- expression("CO"[2]~"(µmol m"^{-2}~"s"^{-1}~")")
+  } else if (flux_seleccionado == "ch4_f_o") {
+    titulo_grafico <- "Flujo de CH"[4]~" por ecosystem"
+    etiqueta_y <- expression("CH"[4]~"(nmol m"^{-2}~"s"^{-1}~")")
+  } else {
+    stop("Tipo de flux no reconocido")
+  }
+  
+  # Transformar los datos de wide a long format
+  datos_long <- df %>%
+    pivot_longer(
+      cols = c(co2_f_o, ch4_f_o),
+      names_to = "Flux_type",
+      values_to = "Valor_flujo"
+    )
+  
+  # Filtrar por tipo de flux
+  datos_filtrados <- datos_long %>% filter(Flux_type == flux_seleccionado)
+  
+  # Promediar los datos por combinación única de related_microstation_id-dataset_id
+  datos_promediados <- datos_filtrados %>%
+    group_by(ecosystem, treatment, related_microstation_id, dataset_id) %>%
+    summarise(
+      Valor_flujo_promediado = mean(Valor_flujo, na.rm = TRUE),
+      .groups = 'drop'
+    )
+  
+  # Calcular número de combinaciones únicas related_microstation_id-dataset_id por grupo
+  datos_n <- datos_promediados %>%
+    group_by(ecosystem, treatment) %>%
+    summarise(
+      n = n(),  # Ahora n es igual al número de filas en datos_promediados
+      .groups = 'drop'
+    )
+  
+  # Calcular medias para cada grupo (usando los datos promediados)
+  datos_media <- datos_promediados %>%
+    group_by(ecosystem, treatment) %>%
+    summarise(
+      Media = mean(Valor_flujo_promediado, na.rm = TRUE),
+      .groups = 'drop'
+    )
+  
+  # Crear gráfico de cajas y bigotes con datos promediados
+  p <- ggplot(datos_promediados, aes(x = ecosystem, y = Valor_flujo_promediado, fill = treatment)) +
+    geom_boxplot(position = position_dodge(width = 0.8), width = 0.7, 
+                 outlier.shape = NA, na.rm = TRUE) +  # outlier.shape = NA para ocultar outliers duplicados
+    # Añadir puntos individuales de los valores promediados en NEGRO
+    geom_point(position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.8),
+               size = 1.5, alpha = 0.6, color = "black") +
+    # Añadir medias como rombos rojos
+    geom_point(data = datos_media, 
+               aes(x = ecosystem, y = Media, group = treatment),
+               shape = 23, size = 3, fill = "red", color = "darkred",
+               position = position_dodge(width = 0.8)) +
+    # Añadir etiquetas n=X (número de combinaciones únicas)
+    geom_text(data = datos_n, 
+              aes(label = paste0("n=", n), y = -Inf), 
+              position = position_dodge(width = 0.8), 
+              vjust = -0.5, size = 2.5, check_overlap = TRUE) +
+    labs(
+      title = titulo_grafico,
+      x = "",
+      y = etiqueta_y,
+      fill = "treatment"
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "right",
+      axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 7),
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 8),
+      legend.text = element_text(size = 7),
+      legend.title = element_text(size = 7),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      panel.grid.major.y = element_line(color = "grey80", linewidth = 0.2),
+      panel.grid.minor.y = element_blank()
+    ) +
+    scale_fill_manual(
+      values = c("C" = "#0077b6", "E" = "#a7c957"),
+      name = "treatment:",
+      drop = FALSE
+    ) +
+    # Asegurar que todas las categorías de ecosystems estén presentes en el orden correcto
+    scale_x_discrete(drop = FALSE)
+  
+  return(p)
+}
+
+# 4. FUNCIÓN PARA GRÁFICAS POR ORIENTACIÓN (ROBLEDAL Y MATORRAL A.M.) - BOXPLOT
+crear_grafico_orientation_flux <- function(df, flux_seleccionado, ecosystem_seleccionado) {
+  
+  # Determinar título y etiqueta Y según el tipo de flux
+  if (flux_seleccionado == "co2_f_o") {
+    titulo_grafico <- bquote("Flujo de CO"[2]~" según exposición -"~.(ecosystem_seleccionado))
+    etiqueta_y <- expression("CO"[2]~"(µmol m"^{-2}~"s"^{-1}~")")
+  } else if (flux_seleccionado == "ch4_f_o") {
+    titulo_grafico <- bquote("Flujo de CH"[4]~" según exposición -"~.(ecosystem_seleccionado))
+    etiqueta_y <- expression("CH"[4]~"(nmol m"^{-2}~"s"^{-1}~")")
+  } else {
+    stop("Tipo de flux no reconocido")
+  }
+  
+  # Seleccionar la columna correspondiente al flux
+  if (flux_seleccionado == "co2_f_o") {
+    columna_flujo <- "co2_f_o"
+  } else if (flux_seleccionado == "ch4_f_o") {
+    columna_flujo <- "ch4_f_o"
+  } else {
+    stop("Tipo de flux no reconocido. Use 'co2_f_o' o 'ch4_f_o'")
+  }
+  
+  # Filtrar por ecosystem y orientación
+  datos_filtrados <- df %>%
+    filter(ecosystem == ecosystem_seleccionado & 
+             orientation %in% c("North", "South"))
+  
+  # Verificar si hay datos
+  if (nrow(datos_filtrados) == 0) {
+    return(NULL)
+  }
+  
+  # Promediar los datos por combinación única de related_microstation_id-dataset_id
+  datos_promediados <- datos_filtrados %>%
+    group_by(orientation, treatment, related_microstation_id, dataset_id) %>%
+    summarise(
+      Valor_flujo_promediado = mean(.data[[columna_flujo]], na.rm = TRUE),
+      .groups = 'drop'
+    )
+  
+  # Calcular número de combinaciones únicas related_microstation_id-dataset_id por grupo
+  datos_n <- datos_promediados %>%
+    group_by(orientation, treatment) %>%
+    summarise(
+      n = n(),  # Ahora n es igual al número de filas en datos_promediados
+      .groups = 'drop'
+    )
+  
+  # Calcular medias para cada grupo (usando los datos promediados)
+  datos_media <- datos_promediados %>%
+    group_by(orientation, treatment) %>%
+    summarise(
+      Media = mean(Valor_flujo_promediado, na.rm = TRUE),
+      .groups = 'drop'
+    )
+  
+  # Crear gráfico de cajas y bigotes SIN patrones con datos promediados
+  p <- ggplot(datos_promediados, aes(x = orientation, y = Valor_flujo_promediado, 
+                                  fill = treatment)) +
+    geom_boxplot(
+      position = position_dodge(width = 0.8), 
+      width = 0.7, 
+      outlier.shape = NA,
+      na.rm = TRUE
+    ) +
+    # Añadir puntos individuales de los valores promediados en NEGRO
+    geom_point(position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.8),
+               size = 1.5, alpha = 0.6, color = "black") +
+    # Añadir medias como rombos rojos
+    geom_point(data = datos_media, 
+               aes(x = orientation, y = Media, group = treatment),
+               shape = 23, size = 3, fill = "red", color = "darkred",
+               position = position_dodge(width = 0.8)) +
+    # Añadir etiquetas n=X (número de combinaciones únicas)
+    geom_text(data = datos_n, 
+              aes(label = paste0("n=", n), y = -Inf), 
+              position = position_dodge(width = 0.8), 
+              vjust = -0.5, size = 2.5, check_overlap = TRUE) +
+    labs(
+      title = titulo_grafico,
+      subtitle = "",
+      x = "",
+      y = etiqueta_y,
+      fill = "treatment"
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "right",
+      axis.text.x = element_text(angle = 0, hjust = 0.5, vjust = 1, size = 7),
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 8),
+      plot.subtitle = element_text(hjust = 0.5, size = 7),
+      legend.text = element_text(size = 7),
+      legend.title = element_text(size = 7),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      panel.grid.major.y = element_line(color = "grey80", linewidth = 0.2),
+      panel.grid.minor.y = element_blank()
+    ) +
+    scale_fill_manual(
+      values = c("C" = "#0077b6", "E" = "#a7c957"),
+      name = "treatment:",
+      drop = FALSE
+    ) +
+    # Asegurar que todas las orientationes estén presentes
+    scale_x_discrete(drop = FALSE)
+  
+  return(p)
+}
+
+# 5. FUNCIÓN PARA GRÁFICAS DE ROBLEDAL POR plot Y altitude CON PATRONES - BOXPLOT
+crear_grafico_robledal_plots_flux <- function(df, flux_seleccionado) {
+  
+  # Determinar título y etiqueta Y según el tipo de flux
+  if (flux_seleccionado == "co2_f_o") {
+    titulo_grafico <- "Flujo de CO"[2]~" - Robledal"
+    etiqueta_y <- expression("CO"[2]~"(µmol m"^{-2}~"s"^{-1}~")")
+  } else if (flux_seleccionado == "ch4_f_o") {
+    titulo_grafico <- "Flujo de CH"[4]~" - Robledal"
+    etiqueta_y <- expression("CH"[4]~"(nmol m"^{-2}~"s"^{-1}~")")
+  } else {
+    stop("Tipo de flux no reconocido")
+  }
+  
+  # Seleccionar la columna correspondiente al flux
+  if (flux_seleccionado == "co2_f_o") {
+    columna_flujo <- "co2_f_o"
+  } else if (flux_seleccionado == "ch4_f_o") {
+    columna_flujo <- "ch4_f_o"
+  } else {
+    stop("Tipo de flux no reconocido. Use 'co2_f_o' o 'ch4_f_o'")
+  }
+  
+  # Filtrar solo datos de Robledal
+  datos_robledal <- df %>%
+    filter(ecosystem == "Robledal") %>%
+    # Crear una variable combinada de plot y altitude para el eje X
+    mutate(plot_altitude = paste(plot, "-", altitude, "m.s.n.m.")) %>%
+    # Ordenar por altitude (de menor a mayor)
+    arrange(altitude) %>%
+    # Convertir a factor para mantener el orden
+    mutate(plot_altitude = factor(plot_altitude, levels = unique(plot_altitude)))
+  
+  # Verificar si hay datos
+  if (nrow(datos_robledal) == 0) {
+    return(NULL)
+  }
+  
+  # Promediar los datos por combinación única de related_microstation_id-dataset_id
+  datos_promediados <- datos_robledal %>%
+    group_by(plot_altitude, treatment, orientation, related_microstation_id, dataset_id) %>%
+    summarise(
+      Valor_flujo_promediado = mean(.data[[columna_flujo]], na.rm = TRUE),
+      .groups = 'drop'
+    )
+  
+  # Calcular número de combinaciones únicas related_microstation_id-dataset_id por grupo
+  datos_n <- datos_promediados %>%
+    group_by(plot_altitude, treatment, orientation) %>%
+    summarise(
+      n = n(),  # Ahora n es igual al número de filas en datos_promediados
+      .groups = 'drop'
+    )
+  
+  # Calcular medias para cada grupo (usando los datos promediados)
+  datos_media <- datos_promediados %>%
+    group_by(plot_altitude, treatment, orientation) %>%
+    summarise(
+      Media = mean(Valor_flujo_promediado, na.rm = TRUE),
+      .groups = 'drop'
+    )
+  
+  # Crear gráfico con patrones (boxplot_pattern) - SOLO PARA ROBLEDAL con datos promediados
+  p <- ggplot(datos_promediados, aes(x = plot_altitude, y = Valor_flujo_promediado, 
+                                fill = treatment, pattern = orientation)) +
+    geom_boxplot_pattern(
+      position = position_dodge(width = 0.8), 
+      width = 0.7, 
+      outlier.shape = NA,
+      pattern_fill = "black",
+      pattern_angle = 45,
+      pattern_density = 0.1,
+      pattern_spacing = 0.025,
+      pattern_key_scale_factor = 0.6,
+      na.rm = TRUE
+    ) +
+    # Añadir puntos individuales de los valores promediados en NEGRO
+    geom_point(position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.8),
+               size = 1.5, alpha = 0.6, color = "black") +
+    # Añadir medias como rombos rojos
+    geom_point(data = datos_media, 
+               aes(x = plot_altitude, y = Media, group = interaction(treatment, orientation)),
+               shape = 23, size = 3, fill = "red", color = "darkred",
+               position = position_dodge(width = 0.8)) +
+    # Añadir etiquetas n=X (número de combinaciones únicas)
+    geom_text(data = datos_n, 
+              aes(label = paste0("n=", n), y = -Inf, group = interaction(treatment, orientation)), 
+              position = position_dodge(width = 0.8), 
+              vjust = -0.5, size = 2.5, check_overlap = TRUE) +
+    labs(
+      title = titulo_grafico,
+      subtitle = "",
+      x = "",
+      y = etiqueta_y,
+      fill = "treatment",
+      pattern = "Orientación"
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "right",
+      axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 7),
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 8),
+      plot.subtitle = element_text(hjust = 0.5, size = 7),
+      legend.text = element_text(size = 7),
+      legend.title = element_text(size = 7),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      panel.grid.major.y = element_line(color = "grey80", linewidth = 0.2),
+      panel.grid.minor.y = element_blank()
+    ) +
+    scale_fill_manual(
+      values = c("C" = "#0077b6", "E" = "#a7c957"),
+      name = "treatment:",
+      drop = FALSE
+    ) +
+    scale_pattern_manual(
+      values = c("North" = "none", "South" = "stripe"),
+      name = "Orientación:",
+      guide = guide_legend(override.aes = list(fill = "white"))
+    ) +
+    # Asegurar que todas las categorías estén presentes
+    scale_x_discrete(drop = FALSE)
+  
+  return(p)
+}
+
+# 6. GENERAR TODAS LAS GRÁFICAS PARA FLUX
+
+# PRIMERAS GRÁFICAS: POR ecosystem
+for(flux in c("co2_f_o", "ch4_f_o")) {
+  p <- crear_grafico_ecosystem_flux(datos, flux)
+  if(!is.null(p)) print(p)
+}
+
+# SEGUNDAS GRÁFICAS: POR ORIENTACIÓN (ROBLEDAL Y MATORRAL A.M.)
+for(flux in c("co2_f_o", "ch4_f_o")) {
+  for(ecosystem in c("Robledal", "Matorral A.M.")) {
+    p <- crear_grafico_orientation_flux(datos, flux, ecosystem)
+    if(!is.null(p)) print(p)
+  }
+}
+
+# TERCERAS GRÁFICAS: ROBLEDAL POR plot Y altitude
+for(flux in c("co2_f_o", "ch4_f_o")) {
+  p <- crear_grafico_robledal_plots_flux(datos, flux)
+  if(!is.null(p)) print(p)
+}
+```
+
+
