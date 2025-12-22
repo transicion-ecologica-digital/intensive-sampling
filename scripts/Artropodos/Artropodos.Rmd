@@ -49,11 +49,11 @@ library(DBI)
 library(RPostgres)
 con <- dbConnect(
   RPostgres::Postgres(),
-  dbname = "obsnev",
-  host = "150.214.217.170",      # o la IP del servidor (ej. 192.168.1.50)
-  port = 2124,             # 5432 es el puerto por defecto de Postgres
-  user = "obsnev_app",
-  password = "Obsnev-App-2025$" # Ver nota de seguridad abajo
+  dbname = "your-database",
+  host = "your-IP",      # o la IP del servidor (ej. 192.168.1.50)
+  port = 5432,             # 5432 es el puerto por defecto de Postgres
+  user = "your-user",
+  password = "your-password" # Ver nota de seguridad abajo
 )
 
 datos_pitfall <- dbReadTable(con, "int_arthropods")
