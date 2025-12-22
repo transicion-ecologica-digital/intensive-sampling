@@ -1,0 +1,1271 @@
+---
+title: "Task E.1) Rangos de descomposición"
+
+---
+
+# Introducción:
+
+El objetivo E.1) se centra en determinar el rango de descomposición de 2 sustratos comunes: celulosa y porciones de ramas de la especie *Berberis hispanica*, con el fin de comprobar la capacidad de descomposición de los organismos presentes en la superficie del suelo. 
+
+# Hipótesis:
+
+Nuestra hipótesis plantea que los refugios biogénicos favorecen una mayor y más prolongada actividad de los microorganismos y artrópodos en el suelo, lo que permite una descomposición más rápida de la materia orgánica a través de procesos de respiración y descomposición en los refugios biogénicos creados a través de los bosques de enebros, robles y pinos respecto a los espacios abiertos que los rodean.
+
+# Metodología original:
+
+La propuesta original planteaba la instalación de la hoja de celulosa en bolsa de polietileno, mientras que las ramas, irían directamente sobre la superficie. La fecha planteda originalmente sería en febrero de 2023, poniendo 6 de celulosa y 6 de ramas por cada microestación (6x86 verbatim_microstationes= 516 de cada uno). Tras 9 meses, se retirarían la mitad de celulosa y la mitad de ramas (noviembre de 2023). Las 3 restantes, se recogerían tras 21 meses desde la fecha inicial (noviembre de 2024).
+
+# Metodología real:
+
+Las metodología y fechas reales de instalación, varían respecto a la propuesta original: La cantidad de ramas y celulosa se mantuvo como en la propuesta original, pero las ramas también fueron protegidas por bolsas de polietelino, con el fin de replicar condiciones y evitar la pérdida por la remoción del suelo y la alteración por fauna. Se pesaron individualmente previa instalación en la superficie del suelo, pudiendo así calcular el porcentaje de degradación tras su recolección respecto al peso original. Originalmente, no había instaladas todavía 86 verbatim_microstationes, si no 77, por lo que el número total se ajusto a tal cantidad, siendo 462 láminas de celulosa y 462 ramas de *Berberis hispanica*. Las fechas de instalación fueron durante junio y julio de 2023, retirándose la mitad a las 11 meses de la fecha de instalación (mayo de 2024) y las restantes a los 22 meses (abril de 2025).
+
+# Análisis de celulosa:
+
+Se realizó un análisis exploratorio mediante diagramas de caja y bigotes para comparar los porcentajes de descomposición (%) a los 21 meses entre treatments (Control vs. Refugio), estratificado por ecosystem, orientación y altitude altitudinal. Los diagramas muestran la mediana (línea central), el rango intercuartílico (caja), la dispersión total (bigotes) y valores atípicos (puntos individuales), complementados con la media aritmética (punto rojo).
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+
+library(DBI)
+library(RPostgres)
+con <- dbConnect(
+  RPostgres::Postgres(),
+  dbname = "your-database",
+  host = "your-IP",      # o la IP del servidor (ej. 192.168.1.50)
+  port = 5432,             # 5432 es el puerto por defecto de Postgres
+  user = "your-user",
+  password = "your-password" # Ver nota de seguridad abajo
+)
+
+celulosa <- dbReadTable(con, "int_decomposition_cellulose")
+ramas <- dbReadTable(con, "int_decomposition_wood")
+
+dbDisconnect(con)
+
+# Cargar librerías
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library(ggpattern)  # Para los patrones de orientación
+
+# CELULOSA
+# SEGÚN ecosystem 
+
+# 2. Limpieza de celulosa y recategorización de ecosystems
+celulosa <- celulosa %>%
+  mutate(
+    across(contains("Porcentaje"), ~{
+      # Convertir a numérico, tratando vacíos, NA, NaN y textos como NA
+      valor <- as.numeric(.)
+      # Reemplazar NaN por NA para manejarlos consistentemente
+      ifelse(is.nan(valor), NA, valor)
+    }),
+    # Extraer año de collection_date
+    año = as.numeric(format(as.Date(collection_date), "%Y"))
+  ) %>%
+  # Filtrar solo datos de 2025 (21 meses)
+  filter(año == 2025) %>%
+  # Recategorización de ecosystems
+ mutate(ecosystem = case_when(
+    ecosystem == "Holm oak forest (Quercus ilex)" & grepl("F", plot, ignore.case = TRUE) ~ "Encinar seco",
+    ecosystem == "Holm oak forest (Quercus ilex)" & grepl("C", plot, ignore.case = TRUE) ~ "Encinar húmedo",
+    ecosystem == "Aleppo pine plantation (Pinus halepensis)" ~ "P_halepensis",
+    ecosystem == "Scots pine plantation (Pinus sylvestris)" ~ "P_sylvestris",
+    ecosystem %in% c("Juniper scrub (Juniperus communis)", "Cushion scrub (Genista versicolor/Cytisus galianoi)") ~ "Matorral A.M.",
+    ecosystem == "Maple forest (Sorbus Aria - Acer opalus)" ~ "Robledal",
+    ecosystem=="Pyrenean oak forest (Quercus pyrenaica)" ~ "Robledal",
+    TRUE ~ ecosystem
+  )) %>%
+  # FILTRAR: Eliminar los celulosa específicos que no quieres
+  filter(!(plot == "CA" & altitude == 1900 & verbatim_microstation %in% c(60, 63, 57)))
+
+# 3. Preparar celulosa en formato largo - SOLO 21 MESES (ya filtrado por año)
+preparar_celulosa <- function(tipo) {
+  if (tipo == "filtros") {
+    cols <- c("cellulose_degradation_perc")
+    nombre_variable <- "Celulosa"
+  }
+  
+  df <- celulosa %>%
+    select(plot, altitude, treatment, ecosystem, orientation, verbatim_microstation, all_of(cols), año) %>%
+    pivot_longer(
+      cols = all_of(cols),
+      names_to = "Tiempo",
+      values_to = "Porcentaje_Descomposicion"
+    ) %>%
+    mutate(
+      Tiempo = "21 meses",
+      treatment_Tiempo = paste(treatment, Tiempo),
+      treatment_Tiempo = factor(treatment_Tiempo,
+                                  levels = c("Control 21 meses", "Refugio 21 meses"),
+                                  ordered = TRUE),
+      Variable = nombre_variable,
+      altitude = as.factor(altitude)
+    ) %>%
+    filter(!is.na(Porcentaje_Descomposicion))  # Eliminar NA/NaN pero mantener 0
+  
+  return(df)
+}
+
+# 4. Preparar celulosa para filtros y ramas
+celulosa_filtros <- preparar_celulosa("filtros")
+
+# 5. Función para crear gráficos de caja y bigotes por ecosystem
+crear_grafico_ecosystem <- function(df, tipo_material) {
+  
+  # Calcular media por microestación (nueva unidad de muestreo)
+  celulosa_por_verbatim_microstation <- df %>%
+    group_by(ecosystem, treatment, Tiempo, plot, altitude, verbatim_microstation) %>%
+    summarise(
+      Media_verbatim_microstation = mean(Porcentaje_Descomposicion, na.rm = TRUE),
+      .groups = 'drop'
+    )
+  
+  # Calcular número de verbatim_microstationes por grupo para el texto
+  celulosa_n <- celulosa_por_verbatim_microstation %>%
+    group_by(ecosystem, treatment) %>%
+    summarise(n = n(), .groups = 'drop')
+  
+  # Calcular medias para cada grupo (ecosystem x treatment)
+  celulosa_medias <- celulosa_por_verbatim_microstation %>%
+    group_by(ecosystem, treatment) %>%
+    summarise(
+      Media_grupo = mean(Media_verbatim_microstation, na.rm = TRUE),
+      .groups = 'drop'
+    )
+  
+  # Orden específico para los ecosystems
+  orden_ecosystems <- c("P_halepensis", "Encinar seco", "Encinar húmedo", "Robledal", "P_sylvestris", "Matorral A.M.")
+  
+  # Aplicar el orden
+  celulosa_por_verbatim_microstation <- celulosa_por_verbatim_microstation %>%
+    mutate(ecosystem = factor(ecosystem, levels = orden_ecosystems))
+  
+  celulosa_n <- celulosa_n %>%
+    mutate(ecosystem = factor(ecosystem, levels = orden_ecosystems))
+  
+  celulosa_medias <- celulosa_medias %>%
+    mutate(ecosystem = factor(ecosystem, levels = orden_ecosystems))
+  
+  # Crear gráfico de caja y bigotes
+  p <- ggplot(celulosa_por_verbatim_microstation, aes(x = ecosystem, y = Media_verbatim_microstation, 
+                                           fill = treatment)) +
+    geom_boxplot(
+      position = position_dodge(width = 0.8),
+      width = 0.7,
+      outlier.shape = NA,  # Ocultar outliers ya que mostraremos todos los puntos
+      outlier.size = 1.5,
+      outlier.fill = "white",
+      outlier.color = "black"
+    ) +
+    # Añadir puntos individuales - EN NEGRO
+    geom_point(
+      color = "black",  # Todos los puntos en negro
+      position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.8),
+      size = 1.5,
+      alpha = 0.6,
+      show.legend = FALSE
+    ) +
+    # Añadir rombo rojo para la media - UNA POR CADA CAJA
+    geom_point(
+      data = celulosa_medias,
+      aes(y = Media_grupo, group = treatment),  # group para el dodge
+      shape = 23,  # 23 = rombo
+      size = 3,
+      fill = "red",
+      color = "darkred",
+      position = position_dodge(width = 0.8),
+      show.legend = FALSE
+    ) +
+    # Añadir texto con n
+    geom_text(data = celulosa_n, 
+              aes(label = paste0("n=", n), y = 2),
+              position = position_dodge(width = 0.8),
+              size = 2.5, vjust = 0.5, color = "black", fontface = "bold") +
+    labs(
+      title = paste("Porcentaje de Descomposición de", tipo_material, "- 21 meses"),
+      x = "ecosystem",
+      y = "Porcentaje de Descomposición (%)",
+      fill = "treatment"
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "right",
+      axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 9),
+      legend.text = element_text(size = 8),
+      legend.title = element_text(size = 8),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      panel.grid.major.y = element_line(color = "grey80", linewidth = 0.2),
+      panel.grid.minor.y = element_blank()
+    ) +
+    scale_fill_manual(
+      values = c("C" = "#0077b6",
+                 "E" = "#a7c957"),
+      name = "treatment"
+    ) +
+    coord_cartesian(ylim = c(0, 100)) +
+    scale_y_continuous(breaks = seq(0, 100, 20))
+  
+  return(p)
+}
+
+# 6. Función para crear gráficos de caja y bigotes por ecosystem y Orientación
+crear_grafico_ecosystem_orientation <- function(df, ecosystem_seleccionado, tipo_material) {
+  
+  # Filtrar celulosa para el ecosystem específico y orientationes North/South
+  celulosa_filtrados <- df %>%
+    filter(ecosystem == ecosystem_seleccionado & orientation %in% c("North", "South"))
+  
+  # Verificar si hay celulosa después del filtrado
+  if (nrow(celulosa_filtrados) == 0) {
+    return(NULL)
+  }
+  
+  # Calcular media por microestación
+  celulosa_por_verbatim_microstation <- celulosa_filtrados %>%
+    group_by(orientation, treatment, Tiempo, plot, altitude, verbatim_microstation) %>%
+    summarise(
+      Media_verbatim_microstation = mean(Porcentaje_Descomposicion, na.rm = TRUE),
+      .groups = 'drop'
+    )
+  
+  # Calcular número de verbatim_microstationes por grupo
+  celulosa_n <- celulosa_por_verbatim_microstation %>%
+    group_by(orientation, treatment) %>%
+    summarise(n = n(), .groups = 'drop')
+  
+  # Calcular medias para cada grupo (orientation x treatment)
+  celulosa_medias <- celulosa_por_verbatim_microstation %>%
+    group_by(orientation, treatment) %>%
+    summarise(
+      Media_grupo = mean(Media_verbatim_microstation, na.rm = TRUE),
+      .groups = 'drop'
+    )
+  
+  # Crear gráfico de caja y bigotes
+  p <- ggplot(celulosa_por_verbatim_microstation, aes(x = orientation, y = Media_verbatim_microstation, 
+                                           fill = treatment)) +
+    geom_boxplot(
+      position = position_dodge(width = 0.8),
+      width = 0.7,
+      outlier.shape = NA,
+      outlier.size = 1.5,
+      outlier.fill = "white",
+      outlier.color = "black"
+    ) +
+    # Añadir puntos individuales - EN NEGRO
+    geom_point(
+      color = "black",
+      position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.8),
+      size = 1.5,
+      alpha = 0.6,
+      show.legend = FALSE
+    ) +
+    # Añadir rombo rojo para la media - UNA POR CADA CAJA
+    geom_point(
+      data = celulosa_medias,
+      aes(y = Media_grupo, group = treatment),
+      shape = 23,  # 23 = rombo
+      size = 3,
+      fill = "red",
+      color = "darkred",
+      position = position_dodge(width = 0.8),
+      show.legend = FALSE
+    ) +
+    # Añadir texto con n
+    geom_text(data = celulosa_n, 
+              aes(label = paste0("n=", n), y = 2),
+              position = position_dodge(width = 0.8),
+              size = 2.5, vjust = 0.5, color = "black", fontface = "bold") +
+    labs(
+      title = paste("Porcentaje de Descomposición de", tipo_material, "-", ecosystem_seleccionado, "- 21 meses"),
+      x = "Exposición",
+      y = "Porcentaje de Descomposición (%)",
+      fill = "treatment"
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "right",
+      axis.text.x = element_text(angle = 0, hjust = 0.5, vjust = 1),
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 8),
+      legend.text = element_text(size = 8),
+      legend.title = element_text(size = 8),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      panel.grid.major.y = element_line(color = "grey80", linewidth = 0.2),
+      panel.grid.minor.y = element_blank()
+    ) +
+    scale_fill_manual(
+      values = c("C" = "#0077b6",
+                 "E" = "#a7c957"),
+      name = "treatment"
+    ) +
+    coord_cartesian(ylim = c(0, 100)) +
+    scale_y_continuous(breaks = seq(0, 100, 20))
+  
+  return(p)
+}
+
+# 7. GENERAR LAS 6 GRÁFICAS SOLICITADAS
+
+# Gráfica 1: Celulosa por ecosystem
+p1 <- crear_grafico_ecosystem(celulosa_filtros, "Celulosa")
+print(p1)
+
+# Gráfica 5: Celulosa - Robledal (North vs South)
+p5 <- crear_grafico_ecosystem_orientation(celulosa_filtros, "Robledal", "Celulosa")
+if (!is.null(p5)) {
+  print(p5)
+}
+
+# Gráfica 6: Celulosa - Matorral A.M. (North vs South)
+p6 <- crear_grafico_ecosystem_orientation(celulosa_filtros, "Matorral A.M.", "Celulosa")
+if (!is.null(p6)) {
+  print(p6)
+}
+
+# 8. Función para crear gráficas de Robledal por plot y altitude CON PATRONES DE ORIENTACIÓN
+crear_grafico_robledal_plots <- function(df, tipo_material) {
+  
+  # Filtrar solo celulosa de Robledal
+  celulosa_robledal <- df %>%
+    filter(ecosystem == "Robledal") %>%
+    # Crear una variable combinada de plot y altitude para el eje X
+    mutate(plot_altitude = paste(plot, "-", altitude, "m.s.n.m.")) %>%
+    # Ordenar por altitude (de menor a mayor)
+    arrange(altitude) %>%
+    # Convertir a factor para mantener el orden
+    mutate(plot_altitude = factor(plot_altitude, levels = unique(plot_altitude)))
+  
+  # Verificar si hay celulosa
+  if (nrow(celulosa_robledal) == 0) {
+    #cat("No hay celulosa para Robledal en", tipo_material, "\n")
+    return(NULL)
+  }
+  
+  # Calcular media por microestación
+  celulosa_por_verbatim_microstation <- celulosa_robledal %>%
+    group_by(plot_altitude, altitude, plot, orientation, treatment, Tiempo, verbatim_microstation) %>%
+    summarise(
+      Media_verbatim_microstation = mean(Porcentaje_Descomposicion, na.rm = TRUE),
+      .groups = 'drop'
+    )
+  
+  # Calcular número de verbatim_microstationes por grupo
+  celulosa_n <- celulosa_por_verbatim_microstation %>%
+    group_by(plot_altitude, treatment) %>%
+    summarise(n = n(), .groups = 'drop')
+  
+  # Calcular medias para cada grupo (plot_altitude x treatment x orientation)
+  celulosa_medias <- celulosa_por_verbatim_microstation %>%
+    group_by(plot_altitude, treatment, orientation) %>%
+    summarise(
+      Media_grupo = mean(Media_verbatim_microstation, na.rm = TRUE),
+      .groups = 'drop'
+    )
+  
+  # Crear gráfico de caja y bigotes CON PATRONES
+  p <- ggplot(celulosa_por_verbatim_microstation, aes(x = plot_altitude, y = Media_verbatim_microstation, 
+                                           fill = treatment)) +
+    geom_boxplot_pattern(
+      aes(pattern = orientation),
+      position = position_dodge(width = 0.8),
+      width = 0.7,
+      outlier.shape = NA,
+      outlier.size = 1.5,
+      outlier.fill = "white",
+      outlier.color = "black",
+      pattern_fill = "black",
+      pattern_angle = 45,
+      pattern_density = 0.1,
+      pattern_spacing = 0.025,
+      pattern_key_scale_factor = 0.6
+    ) +
+    # Añadir puntos individuales - EN NEGRO
+    geom_point(
+      color = "black",
+      position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.8),
+      size = 1.5,
+      alpha = 0.6,
+      show.legend = FALSE
+    ) +
+    # Añadir rombo rojo para la media - UNA POR CADA CAJA
+    geom_point(
+      data = celulosa_medias,
+      aes(y = Media_grupo, group = interaction(treatment, orientation)),
+      shape = 23,  # 23 = rombo
+      size = 2,
+      fill = "red",
+      color = "darkred",
+      position = position_dodge(width = 0.8),
+      show.legend = FALSE
+    ) +
+    # Añadir texto con n
+    geom_text(data = celulosa_n, 
+              aes(label = paste0("n=", n), y = 2),
+              position = position_dodge(width = 0.8),
+              size = 2, vjust = 0.5, color = "black", fontface = "bold") +
+    labs(
+      title = paste("Porcentaje de Descomposición de", tipo_material, "- Robledal - 21 meses"),
+      x = "",
+      y = "Porcentaje de Descomposición (%)",
+      fill = "treatment",
+      pattern = "Orientación"
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "right",
+      axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 7.5),
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 8),
+      legend.text = element_text(size = 7),
+      legend.title = element_text(size = 7),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      panel.grid.major.y = element_line(color = "grey80", linewidth = 0.2),
+      panel.grid.minor.y = element_blank()
+    ) +
+    scale_fill_manual(
+      values = c("C" = "#0077b6",
+                 "E" = "#a7c957"),
+      name = "treatment",
+      guide = guide_legend(override.aes = list(pattern = "none"))
+    ) +
+    scale_pattern_manual(
+      values = c("North" = "none", "South" = "stripe"),
+      name = "Exposición",
+      guide = guide_legend(override.aes = list(fill = "white", 
+                                              color = "black",
+                                              pattern_fill = "black"))
+    ) +
+    coord_cartesian(ylim = c(0, 100)) +
+    scale_y_continuous(breaks = seq(0, 100, 20))
+  
+  return(p)
+}
+
+# 9. GENERAR LAS 2 GRÁFICAS DE ROBLEDAL POR plot Y altitude
+
+# Gráfica 7: Celulosa - Robledal por plot y altitude
+p7 <- crear_grafico_robledal_plots(celulosa_filtros, "Celulosa")
+if (!is.null(p7)) {
+  print(p7)
+}
+
+#cat("\n¡Todas las gráficas se han generado correctamente!\n")
+
+#-------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+#-------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+#-------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+#-------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+#-------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+#-------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+#-------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+#-------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+#-------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+#-------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+#-------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+#-------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+
+# RAMAS
+# SEGÚN ecosystem 
+
+# 2. Limpieza de celulosa y recategorización de ecosystems
+ramas <- ramas %>%
+  mutate(
+    across(contains("Porcentaje"), ~{
+      # Convertir a numérico, tratando vacíos, NA, NaN y textos como NA
+      valor <- as.numeric(.)
+      # Reemplazar NaN por NA para manejarlos consistentemente
+      ifelse(is.nan(valor), NA, valor)
+    }),
+    # Extraer año de collection_date
+    año = as.numeric(format(as.Date(collection_date), "%Y"))
+  ) %>%
+  # Filtrar solo datos de 2025 (21 meses)
+  filter(año == 2025) %>%
+  # Recategorización de ecosystems
+  mutate(ecosystem = case_when(
+    ecosystem == "Holm oak forest (Quercus ilex)" & grepl("F", plot, ignore.case = TRUE) ~ "Encinar seco",
+    ecosystem == "Holm oak forest (Quercus ilex)" & grepl("C", plot, ignore.case = TRUE) ~ "Encinar húmedo",
+    ecosystem == "Aleppo pine plantation (Pinus halepensis)" ~ "P_halepensis",
+    ecosystem == "Scots pine plantation (Pinus sylvestris)" ~ "P_sylvestris",
+    ecosystem %in% c("Juniper scrub (Juniperus communis)", "Cushion scrub (Genista versicolor/Cytisus galianoi)") ~ "Matorral A.M.",
+    ecosystem == "Maple forest (Sorbus Aria - Acer opalus)" ~ "Robledal",
+    ecosystem=="Pyrenean oak forest (Quercus pyrenaica)" ~ "Robledal",
+    TRUE ~ ecosystem
+  )) %>%
+  # FILTRAR: Eliminar los celulosa específicos que no quieres
+  filter(!(plot == "CA" & altitude == 1900 & verbatim_microstation %in% c(60, 63, 57)))
+
+# 3. Preparar celulosa en formato largo - SOLO 21 MESES (ya filtrado por año)
+preparar_celulosa <- function(tipo) {
+  if (tipo == "ramas") {
+    cols <- c("wood_stick_degradation_perc")
+    nombre_variable <- "Ramas"
+  }
+  
+  df <- ramas %>%
+    select(plot, altitude, treatment, ecosystem, orientation, verbatim_microstation, all_of(cols), año) %>%
+    pivot_longer(
+      cols = all_of(cols),
+      names_to = "Tiempo",
+      values_to = "Porcentaje_Descomposicion"
+    ) %>%
+    mutate(
+      Tiempo = "21 meses",
+      treatment_Tiempo = paste(treatment, Tiempo),
+      treatment_Tiempo = factor(treatment_Tiempo,
+                                levels = c("Control 21 meses", "Refugio 21 meses"),
+                                ordered = TRUE),
+      Variable = nombre_variable,
+      altitude = as.factor(altitude)
+    ) %>%
+    filter(!is.na(Porcentaje_Descomposicion))  # Eliminar NA/NaN pero mantener 0
+  
+  return(df)
+}
+
+# 4. Preparar celulosa para filtros y ramas
+celulosa_ramas <- preparar_celulosa("ramas")
+
+# 5. Función para crear gráficos de caja y bigotes por ecosystem
+crear_grafico_ecosystem <- function(df, tipo_material) {
+  
+  # Calcular media por microestación (nueva unidad de muestreo)
+  celulosa_por_verbatim_microstation <- df %>%
+    group_by(ecosystem, treatment, Tiempo, plot, altitude, verbatim_microstation) %>%
+    summarise(
+      Media_verbatim_microstation = mean(Porcentaje_Descomposicion, na.rm = TRUE),
+      .groups = 'drop'
+    )
+  
+  # Calcular número de verbatim_microstationes por grupo para el texto
+  celulosa_n <- celulosa_por_verbatim_microstation %>%
+    group_by(ecosystem, treatment) %>%
+    summarise(n = n(), .groups = 'drop')
+  
+  # Calcular medias para cada grupo (ecosystem x treatment)
+  celulosa_medias <- celulosa_por_verbatim_microstation %>%
+    group_by(ecosystem, treatment) %>%
+    summarise(
+      Media_grupo = mean(Media_verbatim_microstation, na.rm = TRUE),
+      .groups = 'drop'
+    )
+  
+  # Orden específico para los ecosystems
+  orden_ecosystems <- c("P_halepensis", "Encinar seco", "Encinar húmedo", "Robledal", "P_sylvestris", "Matorral A.M.")
+  
+  # Aplicar el orden
+  celulosa_por_verbatim_microstation <- celulosa_por_verbatim_microstation %>%
+    mutate(ecosystem = factor(ecosystem, levels = orden_ecosystems))
+  
+  celulosa_n <- celulosa_n %>%
+    mutate(ecosystem = factor(ecosystem, levels = orden_ecosystems))
+  
+  celulosa_medias <- celulosa_medias %>%
+    mutate(ecosystem = factor(ecosystem, levels = orden_ecosystems))
+  
+  # Crear gráfico de caja y bigotes
+  p <- ggplot(celulosa_por_verbatim_microstation, aes(x = ecosystem, y = Media_verbatim_microstation, 
+                                                      fill = treatment)) +
+    geom_boxplot(
+      position = position_dodge(width = 0.8),
+      width = 0.7,
+      outlier.shape = NA,  # Ocultar outliers ya que mostraremos todos los puntos
+      outlier.size = 1.5,
+      outlier.fill = "white",
+      outlier.color = "black"
+    ) +
+    # Añadir puntos individuales - EN NEGRO
+    geom_point(
+      color = "black",  # Todos los puntos en negro
+      position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.8),
+      size = 1.5,
+      alpha = 0.6,
+      show.legend = FALSE
+    ) +
+    # Añadir rombo rojo para la media - UNA POR CADA CAJA
+    geom_point(
+      data = celulosa_medias,
+      aes(y = Media_grupo, group = treatment),  # group para el dodge
+      shape = 23,  # 23 = rombo
+      size = 3,
+      fill = "red",
+      color = "darkred",
+      position = position_dodge(width = 0.8),
+      show.legend = FALSE
+    ) +
+    # Añadir texto con n
+    geom_text(data = celulosa_n, 
+              aes(label = paste0("n=", n), y = 2),
+              position = position_dodge(width = 0.8),
+              size = 2.5, vjust = 0.5, color = "black", fontface = "bold") +
+    labs(
+      title = paste("Porcentaje de Descomposición de", tipo_material, "- 21 meses"),
+      x = "ecosystem",
+      y = "Porcentaje de Descomposición (%)",
+      fill = "treatment"
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "right",
+      axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 9),
+      legend.text = element_text(size = 8),
+      legend.title = element_text(size = 8),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      panel.grid.major.y = element_line(color = "grey80", linewidth = 0.2),
+      panel.grid.minor.y = element_blank()
+    ) +
+    scale_fill_manual(
+      values = c("C" = "#0077b6",
+                 "E" = "#a7c957"),
+      name = "treatment"
+    ) +
+    coord_cartesian(ylim = c(0, 100)) +
+    scale_y_continuous(breaks = seq(0, 100, 20))
+  
+  return(p)
+}
+
+# 6. Función para crear gráficos de caja y bigotes por ecosystem y Orientación
+crear_grafico_ecosystem_orientation <- function(df, ecosystem_seleccionado, tipo_material) {
+  
+  # Filtrar celulosa para el ecosystem específico y orientationes North/South
+  celulosa_filtrados <- df %>%
+    filter(ecosystem == ecosystem_seleccionado & orientation %in% c("North", "South"))
+  
+  # Verificar si hay celulosa después del filtrado
+  if (nrow(celulosa_filtrados) == 0) {
+    return(NULL)
+  }
+  
+  # Calcular media por microestación
+  celulosa_por_verbatim_microstation <- celulosa_filtrados %>%
+    group_by(orientation, treatment, Tiempo, plot, altitude, verbatim_microstation) %>%
+    summarise(
+      Media_verbatim_microstation = mean(Porcentaje_Descomposicion, na.rm = TRUE),
+      .groups = 'drop'
+    )
+  
+  # Calcular número de verbatim_microstationes por grupo
+  celulosa_n <- celulosa_por_verbatim_microstation %>%
+    group_by(orientation, treatment) %>%
+    summarise(n = n(), .groups = 'drop')
+  
+  # Calcular medias para cada grupo (orientation x treatment)
+  celulosa_medias <- celulosa_por_verbatim_microstation %>%
+    group_by(orientation, treatment) %>%
+    summarise(
+      Media_grupo = mean(Media_verbatim_microstation, na.rm = TRUE),
+      .groups = 'drop'
+    )
+  
+  # Crear gráfico de caja y bigotes
+  p <- ggplot(celulosa_por_verbatim_microstation, aes(x = orientation, y = Media_verbatim_microstation, 
+                                                      fill = treatment)) +
+    geom_boxplot(
+      position = position_dodge(width = 0.8),
+      width = 0.7,
+      outlier.shape = NA,
+      outlier.size = 1.5,
+      outlier.fill = "white",
+      outlier.color = "black"
+    ) +
+    # Añadir puntos individuales - EN NEGRO
+    geom_point(
+      color = "black",
+      position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.8),
+      size = 1.5,
+      alpha = 0.6,
+      show.legend = FALSE
+    ) +
+    # Añadir rombo rojo para la media - UNA POR CADA CAJA
+    geom_point(
+      data = celulosa_medias,
+      aes(y = Media_grupo, group = treatment),
+      shape = 23,  # 23 = rombo
+      size = 3,
+      fill = "red",
+      color = "darkred",
+      position = position_dodge(width = 0.8),
+      show.legend = FALSE
+    ) +
+    # Añadir texto con n
+    geom_text(data = celulosa_n, 
+              aes(label = paste0("n=", n), y = 2),
+              position = position_dodge(width = 0.8),
+              size = 2.5, vjust = 0.5, color = "black", fontface = "bold") +
+    labs(
+      title = paste("Porcentaje de Descomposición de", tipo_material, "-", ecosystem_seleccionado, "- 21 meses"),
+      x = "Exposición",
+      y = "Porcentaje de Descomposición (%)",
+      fill = "treatment"
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "right",
+      axis.text.x = element_text(angle = 0, hjust = 0.5, vjust = 1),
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 8),
+      legend.text = element_text(size = 8),
+      legend.title = element_text(size = 8),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      panel.grid.major.y = element_line(color = "grey80", linewidth = 0.2),
+      panel.grid.minor.y = element_blank()
+    ) +
+    scale_fill_manual(
+      values = c("C" = "#0077b6",
+                 "E" = "#a7c957"),
+      name = "treatment"
+    ) +
+    coord_cartesian(ylim = c(0, 100)) +
+    scale_y_continuous(breaks = seq(0, 100, 20))
+  
+  return(p)
+}
+
+# 7. GENERAR LAS 6 GRÁFICAS SOLICITADAS
+
+# Gráfica 2: Ramas por ecosystem
+p2 <- crear_grafico_ecosystem(celulosa_ramas, "Ramas")
+print(p2)
+
+# Gráfica 3: Ramas - Robledal (North vs South)
+p3 <- crear_grafico_ecosystem_orientation(celulosa_ramas, "Robledal", "Ramas")
+if (!is.null(p3)) {
+  print(p3)
+}
+
+# Gráfica 4: Ramas - Matorral A.M. (North vs South)
+p4 <- crear_grafico_ecosystem_orientation(celulosa_ramas, "Matorral A.M.", "Ramas")
+if (!is.null(p4)) {
+  print(p4)
+}
+
+# 8. Función para crear gráficas de Robledal por plot y altitude CON PATRONES DE ORIENTACIÓN
+crear_grafico_robledal_plots <- function(df, tipo_material) {
+  
+  # Filtrar solo celulosa de Robledal
+  celulosa_robledal <- df %>%
+    filter(ecosystem == "Robledal") %>%
+    # Crear una variable combinada de plot y altitude para el eje X
+    mutate(plot_altitude = paste(plot, "-", altitude, "m.s.n.m.")) %>%
+    # Ordenar por altitude (de menor a mayor)
+    arrange(altitude) %>%
+    # Convertir a factor para mantener el orden
+    mutate(plot_altitude = factor(plot_altitude, levels = unique(plot_altitude)))
+  
+  # Verificar si hay celulosa
+  if (nrow(celulosa_robledal) == 0) {
+    #cat("No hay celulosa para Robledal en", tipo_material, "\n")
+    return(NULL)
+  }
+  
+  # Calcular media por microestación
+  celulosa_por_verbatim_microstation <- celulosa_robledal %>%
+    group_by(plot_altitude, altitude, plot, orientation, treatment, Tiempo, verbatim_microstation) %>%
+    summarise(
+      Media_verbatim_microstation = mean(Porcentaje_Descomposicion, na.rm = TRUE),
+      .groups = 'drop'
+    )
+  
+  # Calcular número de verbatim_microstationes por grupo
+  celulosa_n <- celulosa_por_verbatim_microstation %>%
+    group_by(plot_altitude, treatment) %>%
+    summarise(n = n(), .groups = 'drop')
+  
+  # Calcular medias para cada grupo (plot_altitude x treatment x orientation)
+  celulosa_medias <- celulosa_por_verbatim_microstation %>%
+    group_by(plot_altitude, treatment, orientation) %>%
+    summarise(
+      Media_grupo = mean(Media_verbatim_microstation, na.rm = TRUE),
+      .groups = 'drop'
+    )
+  
+  # Crear gráfico de caja y bigotes CON PATRONES
+  p <- ggplot(celulosa_por_verbatim_microstation, aes(x = plot_altitude, y = Media_verbatim_microstation, 
+                                                      fill = treatment)) +
+    geom_boxplot_pattern(
+      aes(pattern = orientation),
+      position = position_dodge(width = 0.8),
+      width = 0.7,
+      outlier.shape = NA,
+      outlier.size = 1.5,
+      outlier.fill = "white",
+      outlier.color = "black",
+      pattern_fill = "black",
+      pattern_angle = 45,
+      pattern_density = 0.1,
+      pattern_spacing = 0.025,
+      pattern_key_scale_factor = 0.6
+    ) +
+    # Añadir puntos individuales - EN NEGRO
+    geom_point(
+      color = "black",
+      position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.8),
+      size = 1.5,
+      alpha = 0.6,
+      show.legend = FALSE
+    ) +
+    # Añadir rombo rojo para la media - UNA POR CADA CAJA
+    geom_point(
+      data = celulosa_medias,
+      aes(y = Media_grupo, group = interaction(treatment, orientation)),
+      shape = 23,  # 23 = rombo
+      size = 2,
+      fill = "red",
+      color = "darkred",
+      position = position_dodge(width = 0.8),
+      show.legend = FALSE
+    ) +
+    # Añadir texto con n
+    geom_text(data = celulosa_n, 
+              aes(label = paste0("n=", n), y = 2),
+              position = position_dodge(width = 0.8),
+              size = 2, vjust = 0.5, color = "black", fontface = "bold") +
+    labs(
+      title = paste("Porcentaje de Descomposición de", tipo_material, "- Robledal - 21 meses"),
+      x = "",
+      y = "Porcentaje de Descomposición (%)",
+      fill = "treatment",
+      pattern = "Orientación"
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "right",
+      axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 7.5),
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 8),
+      legend.text = element_text(size = 7),
+      legend.title = element_text(size = 7),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      panel.grid.major.y = element_line(color = "grey80", linewidth = 0.2),
+      panel.grid.minor.y = element_blank()
+    ) +
+    scale_fill_manual(
+      values = c("C" = "#0077b6",
+                 "E" = "#a7c957"),
+      name = "treatment",
+      guide = guide_legend(override.aes = list(pattern = "none"))
+    ) +
+    scale_pattern_manual(
+      values = c("North" = "none", "South" = "stripe"),
+      name = "Exposición",
+      guide = guide_legend(override.aes = list(fill = "white", 
+                                               color = "black",
+                                               pattern_fill = "black"))
+    ) +
+    coord_cartesian(ylim = c(0, 100)) +
+    scale_y_continuous(breaks = seq(0, 100, 20))
+  
+  return(p)
+}
+
+# 9. GENERAR LAS 2 GRÁFICAS DE ROBLEDAL POR plot Y altitude
+
+# Gráfica 8: Ramas - Robledal por plot y altitude
+p8 <- crear_grafico_robledal_plots(celulosa_ramas, "Ramas")
+if (!is.null(p8)) {
+  print(p8)
+}
+
+#cat("\n¡Todas las gráficas se han generado correctamente!\n")
+```
+
+
+## ANEXO 1: Descomposición de Celulosa por treatment y altitude
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+
+library(DBI)
+library(RPostgres)
+library(tidyverse)
+library(ggplot2)
+
+# 1. Conexión a la base de datos
+con <- dbConnect(
+  RPostgres::Postgres(),
+  dbname = "your-database",
+  host = "your-IP",      # o la IP del servidor (ej. 192.168.1.50)
+  port = 5432,             # 5432 es el puerto por defecto de Postgres
+  user = "your-user",
+  password = "your-password" # Ver nota de seguridad abajo
+)
+
+# Leer datos
+celulosa <- dbReadTable(con, "int_decomposition_cellulose")
+dbDisconnect(con)
+
+# 2. Limpieza y filtrado para 2025
+celulosa_2025 <- celulosa %>%
+  # Convertir collection_date a formato Date
+  mutate(
+    collection_date = as.Date(collection_date),
+    # Extraer año
+    año = as.numeric(format(collection_date, "%Y")),
+    # Asegurar que cellulose_degradation_perc es numérico
+    cellulose_degradation_perc = as.numeric(cellulose_degradation_perc)
+  ) %>%
+  # Filtrar SOLO datos de 2025
+  filter(año == 2025) %>%
+  # Recategorización de ecosystems
+  mutate(ecosystem = case_when(
+    ecosystem == "Holm oak forest (Quercus ilex)" & grepl("F", plot, ignore.case = TRUE) ~ "Encinar seco",
+    ecosystem == "Holm oak forest (Quercus ilex)" & grepl("C", plot, ignore.case = TRUE) ~ "Encinar húmedo",
+    ecosystem == "Aleppo pine plantation (Pinus halepensis)" ~ "P_halepensis",
+    ecosystem == "Scots pine plantation (Pinus sylvestris)" ~ "P_sylvestris",
+    ecosystem %in% c("Juniper scrub (Juniperus communis)", "Cushion scrub (Genista versicolor/Cytisus galianoi)") ~ "Matorral A.M.",
+    ecosystem == "Maple forest (Sorbus Aria - Acer opalus)" ~ "Robledal",
+    ecosystem == "Pyrenean oak forest (Quercus pyrenaica)" ~ "Robledal",
+    TRUE ~ ecosystem
+  ))
+
+# Verificar que tenemos datos de 2025
+cat("=== VERIFICACIÓN DE DATOS ===\n")
+cat("Filas en celulosa_2025:", nrow(celulosa_2025), "\n")
+cat("Años únicos:", paste(unique(celulosa_2025$año), collapse = ", "), "\n")
+cat("Número de plots:", length(unique(celulosa_2025$plot)), "\n")
+
+# 3. Función para generar gráficos simplificada
+generar_graficos_celulosa <- function() {
+  # Crear directorio si no existe
+  dir.create("Graficos_Porcentaje_Celulosa", showWarnings = FALSE)
+  
+  # Obtener combinaciones únicas de plot y altitude
+  combinaciones <- celulosa_2025 %>%
+    distinct(plot, altitude, ecosystem) %>%
+    arrange(plot, altitude)
+  
+  cat("\n=== GENERANDO GRÁFICOS ===\n")
+  cat("Número de combinaciones plot-altitude:", nrow(combinaciones), "\n\n")
+  
+  # Lista para almacenar gráficos si quieres verlos después
+  lista_graficos <- list()
+  
+  # Generar un gráfico por cada combinación plot-altitude
+  for (i in 1:nrow(combinaciones)) {
+    lugar <- combinaciones$plot[i]
+    altitud_valor <- combinaciones$altitude[i]
+    ecosystem_valor <- combinaciones$ecosystem[i]
+    
+    # Filtrar datos para esta combinación específica
+    datos_filtrados <- celulosa_2025 %>%
+      filter(plot == lugar, 
+             altitude == altitud_valor,
+             !is.na(cellulose_degradation_perc),
+             treatment %in% c("C", "E")) %>%
+      group_by(treatment) %>%
+      summarise(
+        media_porcentaje = mean(cellulose_degradation_perc, na.rm = TRUE),
+        desviacion = sd(cellulose_degradation_perc, na.rm = TRUE),
+        n = n(),
+        error_estandar = desviacion / sqrt(n),
+        limite_inferior = media_porcentaje - (1.96 * error_estandar),
+        limite_superior = media_porcentaje + (1.96 * error_estandar)
+      )
+    
+    # Verificar que tenemos datos para ambos tratamientos
+    if (nrow(datos_filtrados) == 0) {
+      cat("No hay datos para:", lugar, "-", altitud_valor, "m\n")
+      next
+    }
+    
+    # Verificar si tenemos ambos tratamientos
+    tratamientos_presentes <- unique(datos_filtrados$treatment)
+    if (!all(c("C", "E") %in% tratamientos_presentes)) {
+      cat("Faltan tratamientos para", lugar, "-", altitud_valor, "m. Solo hay:", 
+          paste(tratamientos_presentes, collapse = ", "), "\n")
+    }
+    
+    cat("Generando gráfico para:", lugar, "-", altitud_valor, "m\n")
+    
+    # Crear el gráfico de barras
+    p <- ggplot(datos_filtrados, aes(x = treatment, y = media_porcentaje, fill = treatment)) +
+      geom_bar(stat = "identity", position = position_dodge(width = 0.9), width = 0.7) +
+      geom_errorbar(aes(ymin = limite_inferior, ymax = limite_superior),
+                    width = 0.25, position = position_dodge(width = 0.9)) +
+      # Colores específicos: azul para Control, verde para Experimental
+      scale_fill_manual(
+        values = c("C" = "#023e8a", "E" = "#6a994e"),
+        labels = c("C" = "Control", "E" = "Experimental"),
+        name = "Tratamiento"
+      ) +
+      # Etiquetas de los ejes
+      scale_x_discrete(labels = c("C" = "Control", "E" = "Experimental")) +
+      labs(
+        title = paste("Descomposición de Celulosa -", lugar),
+        subtitle = paste("Altitud:", altitud_valor, "m | Ecosistema:", ecosystem_valor, "| Año: 2025"),
+        x = "Tratamiento",
+        y = "Porcentaje de Descomposición (%)",
+        caption = "Barras de error: Intervalo de confianza 95%"
+      ) +
+      theme_minimal() +
+      theme(
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 12),
+        plot.subtitle = element_text(hjust = 0.5, size = 10),
+        axis.text.x = element_text(size = 10),
+        axis.title = element_text(size = 11),
+        legend.position = "none",
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank()
+      ) +
+      expand_limits(y = 0)
+    
+    # Guardar el gráfico en la lista (opcional)
+    lista_graficos[[paste(lugar, altitud_valor, sep = "_")]] <- p
+    
+    # Guardar el gráfico como archivo PNG
+    nombre_archivo <- paste0("Graficos_Porcentaje_Celulosa/",
+                            "Celulosa_", lugar, "_", altitud_valor, "m.png")
+    
+    ggsave(filename = nombre_archivo,
+           plot = p,
+           device = "png",
+           width = 8,
+           height = 6,
+           dpi = 300)
+    
+    cat("  -> Guardado como:", nombre_archivo, "\n")
+  }
+  
+  cat("\n=== PROCESO COMPLETADO ===\n")
+  cat("Gráficos guardados en la carpeta: Graficos_Porcentaje_Celulosa/\n")
+  
+  # Devolver la lista de gráficos si se necesita
+  return(invisible(lista_graficos))
+}
+
+# 4. Ejecutar la función y guardar resultado
+graficos_generados <- generar_graficos_celulosa()
+
+# 5. Ver resumen de datos
+cat("\n=== RESUMEN ESTADÍSTICO ===\n")
+resumen <- celulosa_2025 %>%
+  filter(!is.na(cellulose_degradation_perc),
+         treatment %in% c("C", "E")) %>%
+  group_by(treatment) %>%
+  summarise(
+    n = n(),
+    media = mean(cellulose_degradation_perc),
+    sd = sd(cellulose_degradation_perc),
+    min = min(cellulose_degradation_perc),
+    max = max(cellulose_degradation_perc)
+  )
+
+print(resumen)
+
+# 6. Mostrar algunos gráficos (opcional - solo si quieres verlos en RStudio)
+# Descomenta las siguientes líneas si quieres ver algunos gráficos:
+# cat("\n=== MOSTRANDO ALGUNOS GRÁFICOS ===\n")
+# if (length(graficos_generados) > 0) {
+#   # Mostrar el primer gráfico
+   print(graficos_generados)
+# }
+
+```
+
+## ANEXO 2: Descomposición de ramas de *Berberis hispanica* por plot y altitude
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+
+library(DBI)
+library(RPostgres)
+library(tidyverse)
+library(ggplot2)
+
+# 1. Conexión a la base de datos
+con <- dbConnect(
+  RPostgres::Postgres(),
+  dbname = "your-database",
+  host = "your-IP",      # o la IP del servidor (ej. 192.168.1.50)
+  port = 5432,             # 5432 es el puerto por defecto de Postgres
+  user = "your-user",
+  password = "your-password" # Ver nota de seguridad abajo
+)
+
+# Leer datos
+ramas <- dbReadTable(con, "int_decomposition_wood")
+dbDisconnect(con)
+
+# 2. Limpieza y filtrado para 2025
+ramas_2025 <- ramas %>%
+  # Convertir collection_date a formato Date
+  mutate(
+    collection_date = as.Date(collection_date),
+    # Extraer año
+    año = as.numeric(format(collection_date, "%Y")),
+    # Asegurar que cellulose_degradation_perc es numérico
+    wood_stick_degradation_perc = as.numeric(wood_stick_degradation_perc)
+  ) %>%
+  # Filtrar SOLO datos de 2025
+  filter(año == 2025) %>%
+  # Recategorización de ecosystems
+  mutate(ecosystem = case_when(
+    ecosystem == "Holm oak forest (Quercus ilex)" & grepl("F", plot, ignore.case = TRUE) ~ "Encinar seco",
+    ecosystem == "Holm oak forest (Quercus ilex)" & grepl("C", plot, ignore.case = TRUE) ~ "Encinar húmedo",
+    ecosystem == "Aleppo pine plantation (Pinus halepensis)" ~ "P_halepensis",
+    ecosystem == "Scots pine plantation (Pinus sylvestris)" ~ "P_sylvestris",
+    ecosystem %in% c("Juniper scrub (Juniperus communis)", "Cushion scrub (Genista versicolor/Cytisus galianoi)") ~ "Matorral A.M.",
+    ecosystem == "Maple forest (Sorbus Aria - Acer opalus)" ~ "Robledal",
+    ecosystem == "Pyrenean oak forest (Quercus pyrenaica)" ~ "Robledal",
+    TRUE ~ ecosystem
+  ))
+
+# Verificar que tenemos datos de 2025
+cat("=== VERIFICACIÓN DE DATOS ===\n")
+cat("Filas en celulosa_2025:", nrow(ramas_2025), "\n")
+cat("Años únicos:", paste(unique(ramas_2025$año), collapse = ", "), "\n")
+cat("Número de plots:", length(unique(ramas_2025$plot)), "\n")
+
+# 3. Función para generar gráficos simplificada
+generar_graficos_ramas <- function() {
+  # Crear directorio si no existe
+  dir.create("Graficos_Porcentaje_Ramas", showWarnings = FALSE)
+  
+  # Obtener combinaciones únicas de plot y altitude
+  combinaciones <- ramas_2025 %>%
+    distinct(plot, altitude, ecosystem) %>%
+    arrange(plot, altitude)
+  
+  cat("\n=== GENERANDO GRÁFICOS ===\n")
+  cat("Número de combinaciones plot-altitude:", nrow(combinaciones), "\n\n")
+  
+  # Lista para almacenar gráficos si quieres verlos después
+  lista_graficos <- list()
+  
+  # Generar un gráfico por cada combinación plot-altitude
+  for (i in 1:nrow(combinaciones)) {
+    lugar <- combinaciones$plot[i]
+    altitud_valor <- combinaciones$altitude[i]
+    ecosystem_valor <- combinaciones$ecosystem[i]
+    
+    # Filtrar datos para esta combinación específica
+    datos_filtrados <- ramas_2025 %>%
+      filter(plot == lugar, 
+             altitude == altitud_valor,
+             !is.na(wood_stick_degradation_perc),
+             treatment %in% c("C", "E")) %>%
+      group_by(treatment) %>%
+      summarise(
+        media_porcentaje = mean(wood_stick_degradation_perc, na.rm = TRUE),
+        desviacion = sd(wood_stick_degradation_perc, na.rm = TRUE),
+        n = n(),
+        error_estandar = desviacion / sqrt(n),
+        limite_inferior = media_porcentaje - (1.96 * error_estandar),
+        limite_superior = media_porcentaje + (1.96 * error_estandar)
+      )
+    
+    # Verificar que tenemos datos para ambos tratamientos
+    if (nrow(datos_filtrados) == 0) {
+      cat("No hay datos para:", lugar, "-", altitud_valor, "m\n")
+      next
+    }
+    
+    # Verificar si tenemos ambos tratamientos
+    tratamientos_presentes <- unique(datos_filtrados$treatment)
+    if (!all(c("C", "E") %in% tratamientos_presentes)) {
+      cat("Faltan tratamientos para", lugar, "-", altitud_valor, "m. Solo hay:", 
+          paste(tratamientos_presentes, collapse = ", "), "\n")
+    }
+    
+    cat("Generando gráfico para:", lugar, "-", altitud_valor, "m\n")
+    
+    # Crear el gráfico de barras
+    p <- ggplot(datos_filtrados, aes(x = treatment, y = media_porcentaje, fill = treatment)) +
+      geom_bar(stat = "identity", position = position_dodge(width = 0.9), width = 0.7) +
+      geom_errorbar(aes(ymin = limite_inferior, ymax = limite_superior),
+                    width = 0.25, position = position_dodge(width = 0.9)) +
+      # Colores específicos: azul para Control, verde para Experimental
+      scale_fill_manual(
+        values = c("C" = "#023e8a", "E" = "#6a994e"),
+        labels = c("C" = "Control", "E" = "Experimental"),
+        name = "Tratamiento"
+      ) +
+      # Etiquetas de los ejes
+      scale_x_discrete(labels = c("C" = "Control", "E" = "Experimental")) +
+      labs(
+        title = paste("Descomposición de Ramas -", lugar),
+        subtitle = paste("Altitud:", altitud_valor, "m | Ecosistema:", ecosystem_valor, "| Año: 2025"),
+        x = "Tratamiento",
+        y = "Porcentaje de Descomposición (%)",
+        caption = "Barras de error: Intervalo de confianza 95%"
+      ) +
+      theme_minimal() +
+      theme(
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 12),
+        plot.subtitle = element_text(hjust = 0.5, size = 10),
+        axis.text.x = element_text(size = 10),
+        axis.title = element_text(size = 11),
+        legend.position = "none",
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank()
+      ) +
+      expand_limits(y = 0)
+    
+    # Guardar el gráfico en la lista (opcional)
+    lista_graficos[[paste(lugar, altitud_valor, sep = "_")]] <- p
+    
+    # Guardar el gráfico como archivo PNG
+    #nombre_archivo <- paste0("Graficos_Porcentaje_Celulosa/",
+                            #"Celulosa_", lugar, "_", altitud_valor, "m.png")
+    
+    #ggsave(filename = nombre_archivo,
+           #plot = p,
+           #device = "png",
+           #width = 8,
+           #height = 6,
+           #dpi = 300)
+    
+    #cat("  -> Guardado como:", nombre_archivo, "\n")
+  }
+  
+  #cat("\n=== PROCESO COMPLETADO ===\n")
+  #cat("Gráficos guardados en la carpeta: Graficos_Porcentaje_Celulosa/\n")
+  
+  # Devolver la lista de gráficos si se necesita
+  return(invisible(lista_graficos))
+}
+
+# 4. Ejecutar la función y guardar resultado
+graficos_generados <- generar_graficos_ramas()
+
+# 5. Ver resumen de datos
+cat("\n=== RESUMEN ESTADÍSTICO ===\n")
+resumen <- ramas_2025 %>%
+  filter(!is.na(wood_stick_degradation_perc),
+         treatment %in% c("C", "E")) %>%
+  group_by(treatment) %>%
+  summarise(
+    n = n(),
+    media = mean(wood_stick_degradation_perc),
+    sd = sd(wood_stick_degradation_perc),
+    min = min(wood_stick_degradation_perc),
+    max = max(wood_stick_degradation_perc)
+  )
+
+print(resumen)
+
+# 6. Mostrar algunos gráficos (opcional - solo si quieres verlos en RStudio)
+# Descomenta las siguientes líneas si quieres ver algunos gráficos:
+# cat("\n=== MOSTRANDO ALGUNOS GRÁFICOS ===\n")
+# if (length(graficos_generados) > 0) {
+#   # Mostrar el primer gráfico
+   print(graficos_generados)
+# }
+
+```
+
+# Resultados y conclusiones: 
+
+Cabe mencionar, que algunas de las muestras instaladas han sido eliminadas del medio por factores ajenos, como la remoción por parte de animales salvajes o domésticos, reduciendo así el número de muestras en algunos casos.
+
+Para la celulosa de la cara North, según lo previsto, las hojas de celulosa retiradas a los 22 meses, presentaban un mayor grado de degradación respecto a las retiradas a los 11 meses. Respecto a la hipótesis de partida, no se obtiene una conclusión clara, ya que la descomposición ha sido muy variable independientemente del tipo de treatment aplicado (refugio biogénico respecto a la matriz ambiental).
+
+En el caso de la celulosa de la cara South, la diferencia entre la degradación de las muestras retiradas a las 11 meses y los 22 meses, es menor que en la cara North, aunque sigue el mismo patrón: mayor descomposición cuanto mayor tiempo expuesto en el campo. En relación al efecto del refugio biogénico y la matriz ambiental según la hipótesis de partida, no se obtiene una conclusión clara, por los mismos motivos que en la cara North: no se observa una relación directa entre el tipo de treatment y el grado de descomposición.
+
+Si nos referemos al Berberis hispanica de la cara North,existe un comportamiento similar en las distintas plots en relación al efecto del refugio biogénico y la matriz ambiental, siendo menor la descomposición bajo el efecto del refugio biogénico respecto a la matriz ambiental. En relación con las muestras obtenidas a los 11 y 22 meses, el grado de descomposición es mayor cuanto más tiempo pasa en el medio.
+
+Con Berberis hispanica para la ladera con orientación South, no se observa un patrón definido como sucede en el caso de la cara North, a excepción de las plots de Cañar 1900 y Cañar 2000, siendo justamente lo opuesto en el caso de las plots de Pórtugos 1700 y La Hortichuela 1700, descomponiéndose más en el suelo de la matriz ambiental respecto al refugio biogénico. Respecto a la comparativa en el tiempo, las retiradas a los 22 meses se han descompuesto más que las retiradas a los 11 meses.
