@@ -1,0 +1,10 @@
+Trait,meaning,unit
+SLA,Specific Leaf Area,mm²/mg
+SDM,Seed Dry Mass,mg
+H,Adult plant height,m
+Leaf_N,N content per unit leaf mass,mg/g of N
+DispMode,Propagule Dispersal Syndrome,Categorical
+PollMode,Pollination Syndrome,Categorical
+LifeForm,Raunkiær plant life-form,Categorical
+Ciclo,Annual or Perennial,Categorical
+Strata,Plat strata (herbaceous or mata),Categorical
