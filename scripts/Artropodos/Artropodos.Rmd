@@ -1,0 +1,707 @@
+---
+title: "C.3) Diversidad de Artrópodos"
+author: ''
+date: ''
+output:
+  word_document: default
+  html_document: default
+---
+
+# Introducción:
+
+El objetivo del apartado C.3) consiste en determinar la diversidad específica y funcional y la abundancia de artrópodos asociados al suelo y vegetación dominante, dentro y fuera de los Es biogénicos.
+
+# Hipotésis:
+
+Nuestra hipótesis de partida es que cuanto mayor sea la diversidad de artrópodos, la probabilidad de que contengan especies con diferentes rasgos funcionales y fenológicos es mayor, permitiendo así la complementariedad de nichos en cuanto al uso de recursos y mayor abundancia. Esto supone más alternativas de adaptación y capacidad de respuesta de las comunidades de artrópodos al cambio climático. 
+
+# Metodología original:
+
+Se plantea realizar muestreos cada 15 días a nivel de diversidad y abundancia de artrópodos en el suelo, utilizando trampas de caída y golpeando las ramas de vegetación leñosa dominante en los Es biogénicos y las especies de matorral pioneras en la matriz ambiental. Dicho muestreo, se llevará a cabo en la mitad de las verbatim_microstationes (43 en este caso), en el período de marzo a octubre del año 2023 y 2024.
+
+# Metodología real:
+
+Tanto los vareos de vegetación como las trampas de caída se llevaron a cabo una vez al mes en cada plot. Los vareos de vegetación se aplicaron solamente en las especies de vegetación leñosa de los Es biogénicos, usando para ello un paraguas entomológico. Se golpeaba la rama durante 10 segundos y se recolectaban los insectos caídos en el paraguas entomológico, recolectándolos en un período máximo de 2 minutos. Posteriormente, se almacenaban en bolsas pequeñas de plástico y se conservaba en el congelador para su posterior identificación.
+Para las pitfalls o trampas de caída, fueron utilizados vasos de plásticos enterrados a nivel de la superficie del suelo, rellenos hasta la mitad de hidrato de cloral y jabón, recolectando dichas pitfalls pasadas 48 horas de su colocación. Tras su recolección, se conservaron las muestras en una solución de alcohol, glicerina, ácido acético y agua (sherpel) hasta su posterior identificación.
+El período de muestreo se realizó desde septiembre a noviembre del año 2023 para los vareos de vegetación y de julio a noviembre para las trampas de caída. En el año 2024, se ejecutó desde abril hasta octubre. En ningún año se realizaron muestreos durante el mes de agosto ni en el período invernal de diciembre a marzo.
+En total de esos 2 períodos de muestreo, se han recolectado 930 trampas de caída y 479 bolsas del vareo.
+
+# Análisis de datos: 
+
+A continuación, se muestran los resultados gráficos de la información obtenida por las trampas de caída, sin mostrar la parte de vareos, ya que no se pudo ejecutar dicha metodología para la vegetación de la matriz ambiental, puesto que no había en la mayoría de los casos y el porte de la misma, no permitía la recolección de los artrópodos.
+Se realizó un análisis exploratorio mediante diagramas de caja y bigotes para comparar los índices de diversidad (riqueza, Simpson, Shannon) y abundancia entre treatments (C vs. E), estratificado por ecosystem, orientación y altitude altitudinal. Los diagramas muestran la mediana (línea central), el rango intercuartílico (caja), la dispersión total (bigotes) y valores atípicos (puntos individuales), complementados con la media aritmética (punto rojo).
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+
+# Cargar librerías necesarias
+library(dplyr)
+library(vegan)
+library(tidyr)
+library(ggplot2)
+library(ggpubr)
+library(purrr)
+library(lme4)
+library(lmerTest)
+library(emmeans)
+library(lubridate)
+library(ggpattern)
+library(DBI)
+library(RPostgres)
+con <- dbConnect(
+  RPostgres::Postgres(),
+  dbname = "obsnev",
+  host = "150.214.217.170",      # o la IP del servidor (ej. 192.168.1.50)
+  port = 2124,             # 5432 es el puerto por defecto de Postgres
+  user = "obsnev_app",
+  password = "Obsnev-App-2025$" # Ver nota de seguridad abajo
+)
+
+datos_pitfall <- dbReadTable(con, "int_arthropods")
+
+dbDisconnect(con)
+
+# Convertir la columna date al formato día/mes/año
+datos_pitfall$date<-as.Date(datos_pitfall$date, format="%Y-%m-%d")
+
+# Crear un subset para eliminar las filas SIN BICHOS y DUDA
+datos_pitfall <- subset(datos_pitfall, orden !="SIN BICHOS")
+datos_pitfall <- subset(datos_pitfall, orden !="DUDA")
+
+# Eliminar las celdas vacías o con NA de la columna orden:
+datos_pitfall <- datos_pitfall[!is.na(datos_pitfall$orden) & datos_pitfall$orden != "", ]
+
+# ELIMINAR verbatim_microstationES 60, 63 y 57
+datos_pitfall <- subset(datos_pitfall, !verbatim_microstation %in% c(60, 63, 57))
+
+# Convertir las columnas como factor
+datos_pitfall$orden<-as.factor(datos_pitfall$orden)
+datos_pitfall$treatment<-as.factor(datos_pitfall$treatment)
+datos_pitfall$plot<-as.factor(datos_pitfall$plot)
+datos_pitfall$altitude<-as.factor(datos_pitfall$altitude)
+datos_pitfall$verbatim_microstation<-as.factor(datos_pitfall$verbatim_microstation)
+
+# Agrupar y contar el número de individuos INCLUYENDO verbatim_microstation
+datos_agrupados_pitfall <- aggregate(
+  x = list(Numero_individuos = rep(1, nrow(datos_pitfall))),
+  by = list(
+    date = datos_pitfall$date,
+    plot = datos_pitfall$plot,
+    altitude = datos_pitfall$altitude,
+    treatment = datos_pitfall$treatment,
+    ecosystem = datos_pitfall$ecosystem,
+    orientation = datos_pitfall$orientation,
+    orden = datos_pitfall$orden,
+    verbatim_microstation = datos_pitfall$verbatim_microstation
+  ),
+  FUN = sum
+)
+
+# Usar datos_agrupados_pitfall en lugar de datos de flora
+datos <- datos_agrupados_pitfall
+
+# RECATEGORIZACIÓN DE ecosystemS
+datos <- datos %>%
+  mutate(ecosystem = case_when(
+    ecosystem == "Holm oak forest (Quercus ilex)" & grepl("F", plot, ignore.case = TRUE) ~ "Encinar",
+    ecosystem == "Holm oak forest (Quercus ilex)" & grepl("C", plot, ignore.case = TRUE) ~ "Encinar",
+    ecosystem == "Aleppo pine plantation (Pinus halepensis)" ~ "P_halepensis",
+    ecosystem == "Scots pine plantation (Pinus sylvestris)" ~ "P_sylvestris",
+    ecosystem %in% c("Juniper scrub (Juniperus communis)", "Cushion scrub (Genista versicolor/Cytisus galianoi)") ~ "Matorral A.M.",
+    ecosystem == "Maple forest (Sorbus Aria - Acer opalus)" ~ "Robledal",
+    ecosystem=="Pyrenean oak forest (Quercus pyrenaica)" ~ "Robledal",
+    TRUE ~ ecosystem
+  ))
+
+# Calcular índices de diversidad y total de individuos por grupo INCLUYENDO verbatim_microstation
+resultados_completos <- datos %>%
+  group_by(plot, altitude, treatment, orden, ecosystem, orientation, verbatim_microstation) %>%
+  summarise(Abundancia = sum(Numero_individuos, na.rm = TRUE), .groups = 'drop') %>%
+  group_by(plot, altitude, treatment, ecosystem, orientation, verbatim_microstation) %>%
+  summarise(
+    Riqueza = n_distinct(orden),
+    Simpson = diversity(Abundancia, index = "simpson"),
+    Shannon = diversity(Abundancia, index = "shannon"),
+    Total_individuos = sum(Abundancia, na.rm = TRUE),
+    .groups = 'drop'
+  )
+
+# DEFINIR orden DE ecosystemS
+orden_ecosystems <- c("P_halepensis", "Encinar", "Robledal", "P_sylvestris", "Matorral A.M.")
+resultados_completos$ecosystem <- factor(resultados_completos$ecosystem, levels = orden_ecosystems)
+
+# FUNCIONES MODIFICADAS PARA BOXPLOTS
+
+# 1. PRIMERAS GRÁFICAS: POR ecosystem (BOXPLOTS)
+crear_boxplot_ecosystem <- function(df, indice, titulo) {
+  
+  # Calcular estadísticas para añadir a la gráfica
+  stats_df <- df %>%
+    group_by(ecosystem, treatment) %>%
+    summarise(
+      n = n(),
+      Media = mean(.data[[indice]], na.rm = TRUE),
+      Mediana = median(.data[[indice]], na.rm = TRUE),
+      .groups = 'drop'
+    )
+  
+  p <- ggplot(df, aes(x = ecosystem, y = .data[[indice]], fill = treatment)) +
+    geom_boxplot(
+      alpha = 0.7,
+      outlier.shape = 16,
+      outlier.size = 1.5,
+      outlier.alpha = 0.6,
+      width = 0.7
+    ) +
+    # Añadir puntos individuales
+    geom_point(
+      position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.7),
+      size = 1,
+      alpha = 0.5,
+      color = "black"
+    ) +
+    # Añadir media como punto rojo PARA CADA treatment POR SEPARADO
+    geom_point(
+      data = stats_df,
+      aes(y = Media, group = treatment),
+      shape = 23,
+      size = 2,
+      fill = "red",
+      position = position_dodge(width = 0.7),
+      show.legend = FALSE
+    ) +
+    # Añadir texto con n
+    geom_text(
+      data = stats_df,
+      aes(label = paste0("n=", n), y = -0.05 * max(df[[indice]], na.rm = TRUE)),
+      position = position_dodge(width = 0.7),
+      size = 2.5,
+      vjust = 0,
+      color = "black",
+      fontface = "bold"
+    ) +
+    labs(
+      title = paste(titulo, "por ecosystem"),
+      x = "",
+      y = titulo,
+      fill = "treatment:"
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "right",
+      axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 7),
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 8),
+      legend.text = element_text(size = 7),
+      legend.title = element_text(size = 7),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      panel.grid.major.y = element_line(color = "grey80", linewidth = 0.2),
+      panel.grid.minor.y = element_blank()
+    ) +
+    scale_fill_manual(values = c("C" = "#0077b6", "E" = "#a7c957")) +
+    scale_x_discrete(drop = FALSE)  # Mantener todos los niveles del factor
+  
+  # Aplicar límites del eje Y según el índice
+  if (indice == "Simpson") {
+    p <- p + coord_cartesian(ylim = c(0, 1))
+  } else if (indice == "Shannon") {
+    p <- p + coord_cartesian(ylim = c(0, 2))
+  }
+  
+  return(p)
+}
+
+# 2. SEGUNDAS GRÁFICAS: POR ORIENTACIÓN (BOXPLOTS)
+crear_boxplot_orientation <- function(df, indice, titulo, ecosystem_seleccionado) {
+  
+  datos_filtrados <- df %>%
+    filter(ecosystem == ecosystem_seleccionado & orientation %in% c("North", "South"))
+  
+  if (nrow(datos_filtrados) == 0) {
+    return(NULL)
+  }
+  
+  # Calcular estadísticas para añadir a la gráfica
+  stats_df <- datos_filtrados %>%
+    group_by(orientation, treatment) %>%
+    summarise(
+      n = n(),
+      Media = mean(.data[[indice]], na.rm = TRUE),
+      Mediana = median(.data[[indice]], na.rm = TRUE),
+      .groups = 'drop'
+    )
+  
+  p <- ggplot(datos_filtrados, aes(x = orientation, y = .data[[indice]], fill = treatment)) +
+    geom_boxplot(
+      alpha = 0.7,
+      outlier.shape = 16,
+      outlier.size = 1.5,
+      outlier.alpha = 0.6,
+      width = 0.7
+    ) +
+    # Añadir puntos individuales
+    geom_point(
+      position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.7),
+      size = 1,
+      alpha = 0.5,
+      color = "black"
+    ) +
+    # Añadir media como punto rojo PARA CADA treatment POR SEPARADO
+    geom_point(
+      data = stats_df,
+      aes(y = Media, group = treatment),
+      shape = 23,
+      size = 2,
+      fill = "red",
+      position = position_dodge(width = 0.7),
+      show.legend = FALSE
+    ) +
+    # Añadir texto con n
+    geom_text(
+      data = stats_df,
+      aes(label = paste0("n=", n), y = -0.05 * max(datos_filtrados[[indice]], na.rm = TRUE)),
+      position = position_dodge(width = 0.7),
+      size = 2.5,
+      vjust = 0,
+      color = "black",
+      fontface = "bold"
+    ) +
+    labs(
+      title = paste(titulo, "-", ecosystem_seleccionado),
+      subtitle = "",
+      x = "",
+      y = titulo,
+      fill = "treatment:"
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "right",
+      axis.text.x = element_text(angle = 0, hjust = 0.5, vjust = 1, size = 7),
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 8),
+      plot.subtitle = element_text(hjust = 0.5, size = 7),
+      legend.text = element_text(size = 7),
+      legend.title = element_text(size = 7),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      panel.grid.major.y = element_line(color = "grey80", linewidth = 0.2),
+      panel.grid.minor.y = element_blank()
+    ) +
+    scale_fill_manual(values = c("C" = "#0077b6", "E" = "#a7c957"))
+  
+  # Aplicar límites del eje Y según el índice
+  if (indice == "Simpson") {
+    p <- p + coord_cartesian(ylim = c(0, 1))
+  } else if (indice == "Shannon") {
+    p <- p + coord_cartesian(ylim = c(0, 2))
+  }
+  
+  return(p)
+}
+
+# 3. TERCERAS GRÁFICAS: ROBLEDAL POR plot Y altitude (BOXPLOTS CON PATRONES)
+crear_boxplot_robledal_altitude <- function(df, indice, titulo) {
+  
+  datos_robledal <- df %>%
+    filter(ecosystem == "Robledal")
+  
+  if (nrow(datos_robledal) == 0) {
+    return(NULL)
+  }
+  
+  # MAPA DE NOMBRES DE plotS
+  nombres_plots <- c(
+    "CA" = "Cañar",
+    "H" = "Hortichuela"
+  )
+  
+  datos_robledal <- datos_robledal %>%
+    mutate(
+      plot_nombre = nombres_plots[as.character(plot)],
+      plot_altitude = paste(plot_nombre, "-", altitude, "m.s.n.m.")
+    ) %>%
+    arrange(altitude) %>%
+    mutate(plot_altitude = factor(plot_altitude, levels = unique(plot_altitude)))
+  
+  # Calcular estadísticas para añadir a la gráfica
+  stats_df <- datos_robledal %>%
+    group_by(plot_altitude, treatment, orientation) %>%
+    summarise(
+      n = n(),
+      Media = mean(.data[[indice]], na.rm = TRUE),
+      Mediana = median(.data[[indice]], na.rm = TRUE),
+      .groups = 'drop'
+    )
+  
+  p <- ggplot(datos_robledal, aes(x = plot_altitude, y = .data[[indice]], 
+                                 fill = treatment,
+                                 pattern = orientation)) +
+    # Usar geom_boxplot_pattern para aplicar patrones de orientación
+    geom_boxplot_pattern(
+      alpha = 0.7,
+      outlier.shape = 16,
+      outlier.size = 1.5,
+      outlier.alpha = 0.6,
+      position = position_dodge(width = 0.8),
+      width = 0.7,
+      pattern_fill = "black",
+      pattern_angle = 45,
+      pattern_density = 0.1,
+      pattern_spacing = 0.025,
+      pattern_key_scale_factor = 0.6
+    ) +
+    # Añadir puntos individuales
+    geom_point(
+      aes(group = interaction(treatment, orientation)),
+      position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.8),
+      size = 1,
+      alpha = 0.5,
+      color = "black"
+    ) +
+    # Añadir media como punto rojo PARA CADA treatment POR SEPARADO
+    geom_point(
+      data = stats_df,
+      aes(y = Media, group = interaction(treatment, orientation)),
+      shape = 23,
+      size = 2,
+      fill = "red",
+      position = position_dodge(width = 0.8),
+      show.legend = FALSE
+    ) +
+    # Añadir texto con n
+    geom_text(
+      data = stats_df,
+      aes(label = paste0("n=", n), 
+          y = -0.05 * max(datos_robledal[[indice]], na.rm = TRUE)),
+      position = position_dodge(width = 0.8),
+      size = 2,
+      vjust = 0,
+      color = "black",
+      fontface = "bold"
+    ) +
+    labs(
+      title = paste(titulo, "- Robledal"),
+      subtitle = "",
+      x = "",
+      y = titulo,
+      fill = "treatment:",
+      pattern = "Orientación:"
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "right",
+      axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 7),
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 8),
+      plot.subtitle = element_text(hjust = 0.5, size = 7),
+      legend.text = element_text(size = 7),
+      legend.title = element_text(size = 7),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank(),
+      panel.grid.major.y = element_line(color = "grey80", linewidth = 0.2),
+      panel.grid.minor.y = element_blank()
+    ) +
+    scale_fill_manual(
+      values = c("C" = "#0077b6", "E" = "#a7c957"),
+      name = "treatment:",
+      guide = guide_legend(override.aes = list(pattern = "none"))
+    ) +
+    scale_pattern_manual(
+      values = c("North" = "none", "South" = "stripe"),
+      name = "Orientación:",
+      guide = guide_legend(override.aes = list(fill = "white"))
+    )
+  
+  # Aplicar límites del eje Y según el índice
+  if (indice == "Simpson") {
+    p <- p + coord_cartesian(ylim = c(0, 1))
+  } else if (indice == "Shannon") {
+    p <- p + coord_cartesian(ylim = c(0, 2))
+  }
+  
+  return(p)
+}
+
+# GENERAR TODAS LAS GRÁFICAS DE BOXPLOT
+
+#cat("=== PRIMERAS GRÁFICAS: POR ecosystem (BOXPLOTS) ===\n")
+p1_riqueza <- crear_boxplot_ecosystem(resultados_completos, "Riqueza", "Riqueza de órdenes")
+p1_simpson <- crear_boxplot_ecosystem(resultados_completos, "Simpson", "Índice de Simpson")
+p1_shannon <- crear_boxplot_ecosystem(resultados_completos, "Shannon", "Índice de Shannon")
+p1_abundancia <- crear_boxplot_ecosystem(resultados_completos, "Total_individuos", "Abundancia total")
+print(p1_riqueza)
+print(p1_simpson)
+print(p1_shannon)
+print(p1_abundancia)
+
+#cat("\n=== SEGUNDAS GRÁFICAS: POR ORIENTACIÓN (BOXPLOTS) ===\n")
+for(ecosystem in c("Robledal", "Matorral A.M.")) {
+  p2_riqueza <- crear_boxplot_orientation(resultados_completos, "Riqueza", "Riqueza de órdenes", ecosystem)
+  p2_simpson <- crear_boxplot_orientation(resultados_completos, "Simpson", "Índice de Simpson", ecosystem)
+  p2_shannon <- crear_boxplot_orientation(resultados_completos, "Shannon", "Índice de Shannon", ecosystem)
+  p2_abundancia <- crear_boxplot_orientation(resultados_completos, "Total_individuos", "Abundancia total", ecosystem)
+  if(!is.null(p2_riqueza)) print(p2_riqueza)
+  if(!is.null(p2_simpson)) print(p2_simpson)
+  if(!is.null(p2_shannon)) print(p2_shannon)
+  if(!is.null(p2_abundancia)) print(p2_abundancia)
+}
+
+#cat("\n=== TERCERAS GRÁFICAS: ROBLEDAL POR altitude (BOXPLOTS) ===\n")
+p3_riqueza <- crear_boxplot_robledal_altitude(resultados_completos, "Riqueza", "Riqueza de órdenes")
+p3_simpson <- crear_boxplot_robledal_altitude(resultados_completos, "Simpson", "Índice de Simpson")
+p3_shannon <- crear_boxplot_robledal_altitude(resultados_completos, "Shannon", "Índice de Shannon")
+p3_abundancia <- crear_boxplot_robledal_altitude(resultados_completos, "Total_individuos", "Abundancia total")
+if(!is.null(p3_riqueza)) print(p3_riqueza)
+if(!is.null(p3_simpson)) print(p3_simpson)
+if(!is.null(p3_shannon)) print(p3_shannon)
+if(!is.null(p3_abundancia)) print(p3_abundancia)
+
+
+
+
+```
+
+## ANEXO 1: Evolución fenológica mensual 2024
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+
+# 1. Filtrar por date y aplicar transformaciones
+datos_procesados <- datos_agrupados_pitfall %>%
+  # Convertir date a formato Date si no lo está
+  mutate(date = as.Date(date)) %>%
+  # Filtrar periodo abril-noviembre 2024
+  filter(date >= as.Date("2024-04-01") & date <= as.Date("2024-11-30")) %>%
+  # Recategorización de ecosystems
+  mutate(ecosystem = case_when(
+    ecosystem == "Holm oak forest (Quercus ilex)" & grepl("F", plot, ignore.case = TRUE) ~ "Encinar seco",
+    ecosystem == "Holm oak forest (Quercus ilex)" & grepl("C", plot, ignore.case = TRUE) ~ "Encinar húmedo",
+    ecosystem == "Aleppo pine plantation (Pinus halepensis)" ~ "P_halepensis",
+    ecosystem == "Scots pine plantation (Pinus sylvestris)" ~ "P_sylvestris",
+    ecosystem %in% c("Juniper scrub (Juniperus communis)", "Cushion scrub (Genista versicolor/Cytisus galianoi)") ~ "Matorral A.M.",
+    ecosystem == "Maple forest (Sorbus Aria - Acer opalus)" ~ "Robledal",
+    ecosystem=="Pyrenean oak forest (Quercus pyrenaica)" ~ "Robledal",
+    TRUE ~ ecosystem
+  )) %>%
+  # Recodificar treatments
+  mutate(treatment = case_when(
+    treatment == "E" ~ "E",
+    treatment == "C" ~ "C",
+    TRUE ~ treatment
+  )) %>%
+  # Crear variable de mes y año para agrupar
+  mutate(Mes = format(date, "%Y-%m"),
+         Mes_date = floor_date(date, "month"))  # Primero día del mes para graficar
+
+# 2. Agrupar datos por mes, treatment y ecosystem (SUMA de individuos)
+datos_agrupados_mensual <- datos_procesados %>%
+  group_by(Mes_date, treatment, ecosystem, Mes) %>%
+  summarise(
+    Numero_individuos = sum(Numero_individuos, na.rm = TRUE),
+    .groups = 'drop'
+  )
+
+# 3. Crear gráficas para cada ecosystem
+ecosystems_unicos <- unique(datos_agrupados_mensual$ecosystem)
+
+for(eco in ecosystems_unicos) {
+  
+  datos_eco <- datos_agrupados_mensual %>% filter(ecosystem == eco)
+  
+  # Verificar si hay datos para este ecosystem
+  if(nrow(datos_eco) > 0) {
+    
+    p <- ggplot(datos_eco, aes(x = Mes_date, y = Numero_individuos, 
+                             color = treatment, shape = treatment)) +
+      # Línea horizontal en y=0
+      geom_hline(yintercept = 0, color = "black", linewidth = 0.5, linetype = "solid") +
+      geom_line(aes(linetype = treatment), size = 1) +
+      geom_point(size = 3) +
+      scale_x_date(
+        date_labels = "%b %Y", 
+        date_breaks = "1 month",
+        limits = c(as.Date("2024-04-01"), as.Date("2024-10-01"))
+      ) +
+      # Asegurar que el eje Y incluya el 0
+      scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
+      scale_color_manual(values = c("C" = "#0077b6", "E" = "#a7c957")) +
+      scale_shape_manual(values = c("C" = 16, "E" = 17)) +
+      scale_linetype_manual(values = c("C" = "solid", "E" = "dashed")) +
+      labs(
+        title = paste("Evolución Fenológica -", eco),
+        subtitle = "",
+        x = "",
+        y = "Número de Individuos",
+        color = "treatment",
+        shape = "treatment",
+        linetype = "treatment"
+      ) +
+      theme_minimal() +
+      theme(
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        panel.grid.major.y = element_line(color = "grey90", linewidth = 0.2),
+        panel.grid.minor.y = element_blank(),
+        plot.title = element_text(hjust = 0.5, face = "bold"),
+        plot.subtitle = element_text(hjust = 0.5, size = 10)
+      )
+    
+    print(p)
+    
+    # Opcional: Mostrar resumen de datos por mes
+    #cat("\nResumen para", eco, ":\n")
+    #print(datos_eco %>% 
+            #select(Mes_date, treatment, Numero_individuos) %>% 
+            #arrange(Mes_date, treatment))
+    #cat("\n" + rep("-", 50) + "\n\n")
+  }
+}
+
+```
+
+## ANEXO 2: Distribución del porcentaje de individuos mensual por orden para cada ecosystem
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+
+# Filtrar datos para el periodo de abril a noviembre de 2024
+datos_filtrados <- datos_agrupados_pitfall %>%
+  mutate(date_formateada = as.Date(date)) %>%
+  filter(date_formateada >= as.Date("2024-04-01") & date_formateada <= as.Date("2024-11-30")) %>%
+  # Aplicar recategorización de ecosystems
+  mutate(ecosystem = case_when(
+    ecosystem == "Holm oak forest (Quercus ilex)" & grepl("F", plot, ignore.case = TRUE) ~ "Encinar seco",
+    ecosystem == "Holm oak forest (Quercus ilex)" & grepl("C", plot, ignore.case = TRUE) ~ "Encinar húmedo",
+    ecosystem == "Aleppo pine plantation (Pinus halepensis)" ~ "P_halepensis",
+    ecosystem == "Scots pine plantation (Pinus sylvestris)" ~ "P_sylvestris",
+    ecosystem %in% c("Juniper scrub (Juniperus communis)", "Cushion scrub (Genista versicolor/Cytisus galianoi)") ~ "Matorral A.M.",
+    ecosystem == "Maple forest (Sorbus Aria - Acer opalus)" ~ "Robledal",
+    ecosystem=="Pyrenean oak forest (Quercus pyrenaica)" ~ "Robledal",
+    TRUE ~ ecosystem
+  )) %>%
+  # Recodificar treatments
+  mutate(treatment = case_when(
+    treatment == "E" ~ "E",
+    treatment == "C" ~ "C",
+    TRUE ~ treatment
+  )) %>%
+  # Crear variable de mes
+  mutate(Mes = format(date_formateada, "%Y-%m"),
+         Mes_nombre = format(date_formateada, "%b %Y"),
+         Mes_date = floor_date(date_formateada, "month"))
+
+# Obtener lista de ecosystems únicos
+ecosystems_unicos <- unique(datos_filtrados$ecosystem)
+
+# Crear gráfica para cada ecosystem
+for(eco in ecosystems_unicos) {
+  
+  # Filtrar datos para el ecosystem actual
+  datos_eco <- datos_filtrados %>% filter(ecosystem == eco)
+  
+  # Verificar si hay datos para este ecosystem
+  if(nrow(datos_eco) > 0) {
+    
+    # Obtener los 4 órdenes más representativos para este ecosystem (considerando todo el periodo)
+    top_ordenes <- datos_eco %>%
+      group_by(orden) %>%
+      summarise(Total = sum(Numero_individuos, na.rm = TRUE), .groups = "drop") %>%
+      arrange(desc(Total)) %>%
+      slice_head(n = 4) %>%
+      pull(orden)
+    
+    # Crear la nueva variable para clasificar en Top 4 u "Otros" y agrupar por mes
+    datos_agrupados <- datos_eco %>%
+      mutate(orden_clasificado = ifelse(orden %in% top_ordenes, as.character(orden), "Otros")) %>%
+      group_by(Mes_date, Mes_nombre, treatment, orden_clasificado) %>%
+      summarise(Total_individuos = sum(Numero_individuos, na.rm = TRUE), .groups = "drop") %>%
+      group_by(Mes_date, treatment) %>%
+      mutate(Porcentaje = (Total_individuos / sum(Total_individuos)) * 100) %>%
+      ungroup() %>%
+      # ordenar los meses correctamente
+      arrange(Mes_date) %>%
+      mutate(Mes_nombre = factor(Mes_nombre, levels = unique(Mes_nombre)))
+    
+    # Definir colores específicos para órdenes comunes (incluyendo Dermaptera)
+    colores_especificos <- c(
+      "Coleoptera" = "#1f77b4",           # Azul
+      "Diptera" = "#ff7f0e",              # Naranja
+      "Orthoptera" = "#2ca02c",           # Verde
+      "Hymenoptera" = "#d62728",          # Rojo
+      "Hymenoptera_Formicidae" = "#d62728", # Rojo (mismo que Hymenoptera)
+      "Lepidoptera" = "#9467bd",          # Púrpura
+      "Hemiptera" = "#8c564b",            # Marrón
+      "Araneae" = "#e377c2",              # Rosa
+      "Opiliones" = "#7f7f7f",            # Gris
+      "Pseudoscorpionida" = "#bcbd22",    # Verde oliva
+      "Collembola" = "#17becf",           # Cian
+      "Dermaptera" = "#ff69b4",           # Rosa intenso para Dermaptera
+      "Dyctioptera" = "#ff69b4",          # Rosa intenso para Dyctioptera (por si aparece con esta ortografía)
+      "Blattodea" = "#da70d6",            # Orquídea para Blattodea (cucarachas)
+      "Neuroptera" = "#20b2aa",           # Verde mar para Neuroptera
+      "Thysanoptera" = "#ff4500",         # Naranja rojizo para Thysanoptera
+      "Psocoptera" = "#bdb76b",           # Caqui oscuro para Psocoptera
+      "Mecoptera" = "#8a2be2",            # Azul violeta para Mecoptera
+      "Trichoptera" = "#5f9ea0",          # Azul cadete para Trichoptera
+      "Otros" = "#7f7f7f"                 # Gris
+    )
+    
+    # Usar colores específicos o generar automáticamente si no están definidos
+    ordenes_presentes <- unique(datos_agrupados$orden_clasificado)
+    colores_final <- c()
+    
+    for(orden in ordenes_presentes) {
+      if(orden %in% names(colores_especificos)) {
+        colores_final[orden] <- colores_especificos[orden]
+      } else if(orden != "Otros") {
+        # Asignar color automático para órdenes no definidos
+        colores_final[orden] <- sprintf("#%06X", sample(0:16777215, 1))
+      }
+    }
+    colores_final["Otros"] <- "#7f7f7f"
+    
+    # Calcular número de elementos en la leyenda para determinar columnas
+    n_elementos_leyenda <- length(ordenes_presentes)
+    n_columnas_leyenda <- ifelse(n_elementos_leyenda > 5, 2, 1)
+    
+    # Crear el gráfico por meses CON LEYENDA EN 2 FILAS EN LA PARTE INFERIOR
+    p <- ggplot(datos_agrupados, aes(x = treatment, y = Porcentaje, fill = orden_clasificado)) +
+      geom_bar(stat = "identity", position = "stack") +
+      facet_grid(~Mes_nombre) +
+      scale_y_continuous(labels = scales::percent_format(scale = 1)) +
+      scale_fill_manual(values = colores_final) +
+      labs(title = paste("Distribución mensual de individuos -", eco),
+           subtitle = "",
+           x = "",
+           y = "Porcentaje individuos (%)",
+           fill = "orden") +
+      theme_minimal() +
+      theme(
+        axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 12),
+        plot.subtitle = element_text(hjust = 0.5, size = 9),
+        strip.text = element_text(size = 7, face = "bold"),
+        legend.position = "bottom",  # Leyenda en la parte inferior
+        legend.direction = "horizontal", # Dirección horizontal
+        legend.text = element_text(size = 7),
+        legend.title = element_text(size = 8, face = "bold"),
+        legend.key.size = unit(0.3, "cm"),  # Tamaño más pequeño de los cuadrados
+        legend.key.height = unit(0.3, "cm"), # Altura más pequeña
+        legend.key.width = unit(0.3, "cm"),  # Ancho más pequeño
+        legend.margin = margin(2, 2, 2, 2), # Margen reducido
+        legend.box.margin = margin(2, 2, 2, 2), # Margen del cuadro reducido
+        legend.spacing.x = unit(0.2, "cm"), # Espaciado horizontal entre elementos
+        legend.spacing.y = unit(0.1, "cm"), # Espaciado vertical entre filas
+        panel.spacing = unit(0.3, "lines"),
+        plot.margin = margin(10, 10, 40, 10)  # Margen inferior mayor para leyenda
+      ) +
+      guides(fill = guide_legend(
+        nrow = 2,  # Máximo 2 filas
+        byrow = TRUE, # ordenar por filas
+        title.position = "top", # Título arriba de la leyenda
+        title.hjust = 0.5 # Título centrado
+      ))
+    
+    print(p)
+    
+     }
+}
+
+
+```
